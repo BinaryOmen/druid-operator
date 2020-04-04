@@ -1,0 +1,24 @@
+apiVersion: binaryomen.org/v1alpha1
+kind: Druid
+metadata:
+  name: example-druid
+spec:
+  image: apache/incubator-druid:0.16.0-incubating
+  startscript: /druid.sh
+  historicals:
+    enabled: true
+    replicas: 1
+    port: 8000
+    runtime.properties: |
+      druid.service=druid/historical
+    volumeClaimTemplates:
+        -
+          metadata:
+            name: data-volume
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+            storageClassName: zone-a-storage
