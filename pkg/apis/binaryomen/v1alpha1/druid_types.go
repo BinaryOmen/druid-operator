@@ -14,17 +14,18 @@ type DruidSpec struct {
 
 // Historicals params specific to historical nodes
 type Historicals struct {
-	Enabled  bool   `json:"enabled"`
-	Replicas int32  `json:"replicas"`
-	Port     int32  `json:"port"`
-	Common   Common `json:"common"`
+	Enabled    bool  `json:"enabled"`
+	Replicas   int32 `json:"replicas"`
+	Port       int32 `json:"port"`
+	CommonNode `json:",inline,omitempty"`
 }
 
-// Common Properties for all the processes
-type Common struct {
+// CommonNode Properties for all the processes
+type CommonNode struct {
+	MountPath            string                     `json:"mountPath,omitempty"`
 	Volumes              []v1.Volume                `json:"volumes,omitempty"`
+	RuntimeProperties    string                     `json:"runtime.properties,omitempty"`
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
-	RuntimeProperties    string                     `json:"runtime.properties"`
 }
 
 // DruidStatus defines the observed state of Druid

@@ -24,7 +24,7 @@ func MakeStatefulSet(c *binaryomenv1alpha1.Druid) *appsv1.StatefulSet {
 }
 
 func MakeStatefulSetName(c *binaryomenv1alpha1.Druid) string {
-	return fmt.Sprintf("%s-bookie-statefulset", c.GetName())
+	return fmt.Sprintf("%s-historical", c.GetName())
 }
 
 func makeStatefulSetSpec(c *binaryomenv1alpha1.Druid) appsv1.StatefulSetSpec {
@@ -41,7 +41,7 @@ func makeStatefulSetSpec(c *binaryomenv1alpha1.Druid) appsv1.StatefulSetSpec {
 		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 			Type: appsv1.RollingUpdateStatefulSetStrategyType,
 		},
-		VolumeClaimTemplates: getVOlumeClaimTemplates(c),
+		VolumeClaimTemplates: getVolumeClaimTemplates(c),
 	}
 
 	return s
@@ -88,7 +88,7 @@ func makePodSpec(c *binaryomenv1alpha1.Druid) v1.PodSpec {
 				VolumeMounts: []v1.VolumeMount{
 					v1.VolumeMount{
 						Name:      "runtime-properties",
-						MountPath: "/opt/druid/var",
+						MountPath: c.Spec.Historicals.MountPath,
 					},
 				},
 			},
@@ -97,10 +97,10 @@ func makePodSpec(c *binaryomenv1alpha1.Druid) v1.PodSpec {
 	return spec
 }
 
-func getVOlumeClaimTemplates(c *binaryomenv1alpha1.Druid) []v1.PersistentVolumeClaim {
+func getVolumeClaimTemplates(c *binaryomenv1alpha1.Druid) []v1.PersistentVolumeClaim {
 	pvc := []v1.PersistentVolumeClaim{}
 
-	for _, val := range c.Spec.Historicals.Common.VolumeClaimTemplates {
+	for _, val := range c.Spec.Historicals.CommonNode.VolumeClaimTemplates {
 		pvc = append(pvc, val)
 	}
 	return pvc
@@ -117,7 +117,7 @@ func MakeConfigMap(c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
 			Namespace: c.Namespace,
 		},
 		Data: map[string]string{
-			"runtime.properties": c.Spec.Historicals.Common.RuntimeProperties,
+			"runtime.properties": c.Spec.Historicals.RuntimeProperties,
 		},
 	}
 }

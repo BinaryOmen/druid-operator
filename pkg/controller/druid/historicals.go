@@ -56,7 +56,9 @@ func (r *ReconcileDruid) reconcileStatefulSet(instance *binaryomenv1alpha1.Druid
 					"OldSize", old,
 					"NewSize", instance.Spec.Historicals.Replicas)
 			}
+
 		}
+		return r.updateStatefulSet(instance, ssCur, ssCreate)
 	}
 
 	r.log.Info("Historical node num info",
@@ -85,6 +87,13 @@ func (r *ReconcileDruid) reconcileHistoricalConfigMap(instance *binaryomenv1alph
 				"ConfigMap.Namespace", instance.Namespace,
 				"ConfigMap.Name", cmCreate.GetName())
 		}
+	} else if err != nil {
+		return err
+	} else {
+		if err = r.client.Update(context.TODO(), cmCur); err == nil {
+			r.log.Info("Update Historical configmap success")
+		}
+		return r.updateHistoricalCm(instance, cmCur, cmCreate)
 	}
 	return
 }
@@ -107,4 +116,22 @@ func SyncStatefulSet(curr *appsv1.StatefulSet, next *appsv1.StatefulSet) {
 	curr.Spec.Replicas = next.Spec.Replicas
 	curr.Spec.Template = next.Spec.Template
 	curr.Spec.UpdateStrategy = next.Spec.UpdateStrategy
+}
+
+func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
+	curr.Data = next.Data
+	curr.BinaryData = next.BinaryData
+}
+
+func (r *ReconcileDruid) updateHistoricalCm(instance *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
+	r.log.Info("Updating CM",
+		"ConfigMap.Namespace", foundCm.Namespace,
+		"ConfigMap.Name", foundCm.Name)
+	SyncCm(foundCm, cm)
+	err = r.client.Update(context.TODO(), foundCm)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

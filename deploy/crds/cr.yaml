@@ -7,11 +7,18 @@ spec:
   startscript: /druid.sh
   historicals:
     enabled: true
-    replicas: 1
     mountPath: "/opt/druid/conf/druid/cluster/data/historical"
+    replicas: 1
     port: 8088
     runtime.properties: |
-      druid.service=druid/historical
+       druid.service=druid/historical
+       druid.server.http.numThreads=5
+       druid.processing.buffer.sizeBytes=1
+       druid.processing.numMergeBuffers=1
+       druid.processing.numThreads=1
+       # Segment storage
+       druid.segmentCache.locations=[{\"path\":\"/druid/data/segments\",\"maxSize\":10737418240}]
+       druid.server.maxSize=10737418240
     volumeClaimTemplates:
         -
           metadata:
@@ -22,4 +29,4 @@ spec:
             resources:
               requests:
                 storage: 1Gi
-            storageClassName: zone-a-storage
+            
