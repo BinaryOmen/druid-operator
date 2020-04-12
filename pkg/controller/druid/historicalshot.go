@@ -2,8 +2,10 @@ package druid
 
 import (
 	"context"
+	"time"
 
-	"github.com/BinaryOmen/druid-operator/pkg/controller/nodes"
+	historicals "github.com/BinaryOmen/druid-operator/pkg/controller/nodes/historicals/hot"
+	"github.com/BinaryOmen/druid-operator/pkg/controller/sync"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -13,22 +15,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func (r *ReconcileDruid) reconcileHistorical(instance *binaryomenv1alpha1.Druid) error {
+func (r *ReconcileDruid) reconcileHistoricalHot(instance *binaryomenv1alpha1.Druid) error {
 
 	for _, fun := range []reconcileFun{
-		r.reconcileStatefulSet,
-		r.reconcileHistoricalConfigMap,
+		r.reconcileStatefulSetHot,
+		r.reconcileHistoricalConfigMapHot,
 	} {
 		if err := fun(instance); err != nil {
 			r.log.Error(err, "Reconciling DruidCluster Historical Error", instance)
 			return err
 		}
 	}
+	time.Sleep(30 * time.Second)
 	return nil
 }
 
-func (r *ReconcileDruid) reconcileStatefulSet(instance *binaryomenv1alpha1.Druid) (err error) {
-	ssCreate := nodes.MakeStatefulSet(instance)
+func (r *ReconcileDruid) reconcileStatefulSetHot(instance *binaryomenv1alpha1.Druid) (err error) {
+	ssCreate := historicals.MakeStatefulSetHot(instance)
 
 	ssCur := &appsv1.StatefulSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -48,17 +51,17 @@ func (r *ReconcileDruid) reconcileStatefulSet(instance *binaryomenv1alpha1.Druid
 	} else if err != nil {
 		return err
 	} else {
-		if instance.Spec.Historicals.Replicas != *ssCur.Spec.Replicas {
+		if instance.Spec.HistoricalHot.Replicas != *ssCur.Spec.Replicas {
 			old := *ssCur.Spec.Replicas
-			ssCur.Spec.Replicas = &instance.Spec.Historicals.Replicas
+			ssCur.Spec.Replicas = &instance.Spec.HistoricalHot.Replicas
 			if err = r.client.Update(context.TODO(), ssCur); err == nil {
-				r.log.Info("Scale Historical statefulSet success",
+				r.log.Info("Scale Historical statefulSet success.",
 					"OldSize", old,
-					"NewSize", instance.Spec.Historicals.Replicas)
+					"NewSize", instance.Spec.HistoricalHot.Replicas)
 			}
 
 		}
-		return r.updateStatefulSet(instance, ssCur, ssCreate)
+		return r.updateStatefulSetHot(instance, ssCur, ssCreate)
 	}
 
 	r.log.Info("Historical node num info",
@@ -69,8 +72,8 @@ func (r *ReconcileDruid) reconcileStatefulSet(instance *binaryomenv1alpha1.Druid
 	return
 }
 
-func (r *ReconcileDruid) reconcileHistoricalConfigMap(instance *binaryomenv1alpha1.Druid) (err error) {
-	cmCreate := nodes.MakeConfigMap(instance)
+func (r *ReconcileDruid) reconcileHistoricalConfigMapHot(instance *binaryomenv1alpha1.Druid) (err error) {
+	cmCreate := historicals.MakeConfigMapHot(instance)
 
 	cmCur := &v1.ConfigMap{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -93,16 +96,16 @@ func (r *ReconcileDruid) reconcileHistoricalConfigMap(instance *binaryomenv1alph
 		if err = r.client.Update(context.TODO(), cmCur); err == nil {
 			r.log.Info("Update Historical configmap success")
 		}
-		return r.updateHistoricalCm(instance, cmCur, cmCreate)
+		return r.updateHistoricalCmHot(instance, cmCur, cmCreate)
 	}
 	return
 }
 
-func (r *ReconcileDruid) updateStatefulSet(instance *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
+func (r *ReconcileDruid) updateStatefulSetHot(instance *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundSts.Namespace,
 		"StatefulSet.Name", foundSts.Name)
-	SyncStatefulSet(foundSts, sts)
+	sync.SyncStatefulSet(foundSts, sts)
 	err = r.client.Update(context.TODO(), foundSts)
 	if err != nil {
 		return err
@@ -111,23 +114,11 @@ func (r *ReconcileDruid) updateStatefulSet(instance *binaryomenv1alpha1.Druid, f
 	return nil
 }
 
-// SyncStatefulSet synchronizes any updates to the stateful-set
-func SyncStatefulSet(curr *appsv1.StatefulSet, next *appsv1.StatefulSet) {
-	curr.Spec.Replicas = next.Spec.Replicas
-	curr.Spec.Template = next.Spec.Template
-	curr.Spec.UpdateStrategy = next.Spec.UpdateStrategy
-}
-
-func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
-	curr.Data = next.Data
-	curr.BinaryData = next.BinaryData
-}
-
-func (r *ReconcileDruid) updateHistoricalCm(instance *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
+func (r *ReconcileDruid) updateHistoricalCmHot(instance *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
 	r.log.Info("Updating CM",
 		"ConfigMap.Namespace", foundCm.Namespace,
 		"ConfigMap.Name", foundCm.Name)
-	SyncCm(foundCm, cm)
+	sync.SyncCm(foundCm, cm)
 	err = r.client.Update(context.TODO(), foundCm)
 	if err != nil {
 		return err

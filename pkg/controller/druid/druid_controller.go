@@ -87,6 +87,7 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 	r.log.Info("Reconciling DruidCluster")
 
 	instance := &binaryomenv1alpha1.Druid{}
+
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -97,12 +98,14 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 	//	return reconcile.Result{RequeueAfter: ReconcileTime}, nil
 
 	for _, fun := range []reconcileFun{
-		r.reconcileHistorical,
+		r.reconcileHistoricalHot,
+		r.reconcileMM,
 	} {
 		if err = fun(instance); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
+
 	// Recreate any missing resources every 'ReconcileTime'
 	return reconcile.Result{RequeueAfter: ReconcileTime}, nil
 }

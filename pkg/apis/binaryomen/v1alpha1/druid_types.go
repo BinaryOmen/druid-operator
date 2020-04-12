@@ -7,24 +7,29 @@ import (
 
 // DruidSpec defines the druid spec
 type DruidSpec struct {
-	Historicals Historicals `json:"historicals,omitempty"`
-	StartScript string      `json:"startscript"`
-	Image       string      `json:"image,omitempty"`
+	HistoricalHot NodeSpec `json:"historicals-hot"`
+	MiddleManager NodeSpec `json:"middlemanagers"`
+	// TODO: HistoricalCOld
+	HistoricalsCold *NodeSpec `json:"historical-cold"`
+	StartScript     string    `json:"startscript"`
+	Image           string    `json:"image,omitempty"`
 }
 
-// Historicals params specific to historical nodes
-type Historicals struct {
-	Enabled    bool  `json:"enabled"`
-	Replicas   int32 `json:"replicas"`
-	Port       int32 `json:"port"`
+// NodeSpec specific to historical nodes
+type NodeSpec struct {
+	// NodeType: Can be historical, middlemanager, coordinator, router, overlord
+	NodeType   string `json:"nodeType"`
+	Replicas   int32  `json:"replicas"`
+	Port       int32  `json:"port"`
 	CommonNode `json:",inline,omitempty"`
 }
 
 // CommonNode Properties for all the processes
 type CommonNode struct {
 	MountPath            string                     `json:"mountPath,omitempty"`
-	Volumes              []v1.Volume                `json:"volumes,omitempty"`
 	RuntimeProperties    string                     `json:"runtime.properties,omitempty"`
+	Volumes              []v1.Volume                `json:"volumes,omitempty"`
+	VolumeMounts         []v1.VolumeMount           `json:"volumeMounts,omitempty"`
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 }
 
