@@ -99,7 +99,7 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 	//	return reconcile.Result{RequeueAfter: ReconcileTime}, nil
 
 	for _, fun := range []reconcileFun{
-		r.reconcileHistoricalHot,
+		r.reconileDruid,
 		//	r.reconcileMM,
 	} {
 		if err = fun(c, cc); err != nil {
