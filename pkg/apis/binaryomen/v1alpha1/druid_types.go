@@ -5,31 +5,43 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// DruidSpec defines the druid spec
+// DruidSpec represents the druid spec
 type DruidSpec struct {
-	HistoricalHot NodeSpec `json:"historicals-hot"`
+	// HistoricalHot represents the historical node
+	Nodes map[string]NodeSpec `json:"nodes"`
+	// MidleManager represents the middlemanager node
 	MiddleManager NodeSpec `json:"middlemanagers"`
 	// TODO: HistoricalCOld
 	HistoricalsCold *NodeSpec `json:"historical-cold"`
-	StartScript     string    `json:"startscript"`
-	Image           string    `json:"image,omitempty"`
+	// Required: StartScript
+	StartScript string `json:"startscript"`
+	// Required: Image for cluster
+	Image string `json:"image,omitempty"`
 }
 
-// NodeSpec specific to historical nodes
+// NodeSpec specific to all nodes
 type NodeSpec struct {
 	// NodeType: Can be historical, middlemanager, coordinator, router, overlord
-	NodeType   string `json:"nodeType"`
-	Replicas   int32  `json:"replicas"`
-	Port       int32  `json:"port"`
+	NodeType string `json:"nodeType"`
+	// Required
+	Replicas int32 `json:"replicas"`
+	// Required
+	Port int32 `json:"port"`
+	// Required
 	CommonNode `json:",inline,omitempty"`
 }
 
 // CommonNode Properties for all the processes
 type CommonNode struct {
-	MountPath            string                     `json:"mountPath,omitempty"`
-	RuntimeProperties    string                     `json:"runtime.properties,omitempty"`
-	Volumes              []v1.Volume                `json:"volumes,omitempty"`
-	VolumeMounts         []v1.VolumeMount           `json:"volumeMounts,omitempty"`
+	// Required: MountPath to mount all the runtime.properties, logs and jvm config inside the node as configMap
+	MountPath string `json:"mountPath,omitempty"`
+	// Required: Runtime Properties for all nodes
+	RuntimeProperties string `json:"runtime.properties,omitempty"`
+	// Optional
+	Volumes []v1.Volume `json:"volumes,omitempty"`
+	// Optional
+	VolumeMounts []v1.VolumeMount `json:"volumeMounts,omitempty"`
+	// Optional
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 }
 

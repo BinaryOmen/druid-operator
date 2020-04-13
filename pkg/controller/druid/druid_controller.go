@@ -78,7 +78,7 @@ type ReconcileDruid struct {
 	log    logr.Logger
 }
 
-type reconcileFun func(cluster *binaryomenv1alpha1.Druid) error
+type reconcileFun func(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) error
 
 func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	r.log = log.WithValues(
@@ -86,9 +86,10 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 		"Request.Name", request.Name)
 	r.log.Info("Reconciling DruidCluster")
 
-	instance := &binaryomenv1alpha1.Druid{}
+	cc := &binaryomenv1alpha1.Druid{}
+	c := &binaryomenv1alpha1.NodeSpec{}
 
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err := r.client.Get(context.TODO(), request.NamespacedName, cc)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -99,9 +100,9 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 
 	for _, fun := range []reconcileFun{
 		r.reconcileHistoricalHot,
-		r.reconcileMM,
+		//	r.reconcileMM,
 	} {
-		if err = fun(instance); err != nil {
+		if err = fun(c, cc); err != nil {
 			return reconcile.Result{}, err
 		}
 	}

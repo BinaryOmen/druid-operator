@@ -1,5 +1,6 @@
 package druid
 
+/*
 import (
 	"context"
 	"fmt"
@@ -123,3 +124,4 @@ func (r *ReconcileDruid) updateMMCm(instance *binaryomenv1alpha1.Druid, foundCm 
 
 	return nil
 }
+*/

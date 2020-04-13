@@ -2,7 +2,6 @@ package druid
 
 import (
 	"context"
-	"time"
 
 	historicals "github.com/BinaryOmen/druid-operator/pkg/controller/nodes/historicals/hot"
 	"github.com/BinaryOmen/druid-operator/pkg/controller/sync"
@@ -15,53 +14,53 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func (r *ReconcileDruid) reconcileHistoricalHot(instance *binaryomenv1alpha1.Druid) error {
+func (r *ReconcileDruid) reconcileHistoricalHot(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) error {
 
 	for _, fun := range []reconcileFun{
-		r.reconcileStatefulSetHot,
-		r.reconcileHistoricalConfigMapHot,
+		r.reconcileStatefulSet,
+		//r.reconcileHistoricalConfigMapHot,
 	} {
-		if err := fun(instance); err != nil {
-			r.log.Error(err, "Reconciling DruidCluster Historical Error", instance)
+		if err := fun(c, cc); err != nil {
+			r.log.Error(err, "Reconciling DruidCluster Historical Error", cc)
 			return err
 		}
 	}
-	time.Sleep(30 * time.Second)
+	//	time.Sleep(30 * time.Second)
 	return nil
 }
 
-func (r *ReconcileDruid) reconcileStatefulSetHot(instance *binaryomenv1alpha1.Druid) (err error) {
-	ssCreate := historicals.MakeStatefulSetHot(instance)
+func (r *ReconcileDruid) reconcileStatefulSet(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) (err error) {
+	sts, _ := historicals.Create(c, cc)
 
 	ssCur := &appsv1.StatefulSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      ssCreate.Name,
-		Namespace: ssCreate.Namespace,
+		Name:      sts.Name,
+		Namespace: sts.Namespace,
 	}, ssCur)
 	if err != nil && errors.IsNotFound(err) {
-		if err = controllerutil.SetControllerReference(instance, ssCreate, r.scheme); err != nil {
+		if err = controllerutil.SetControllerReference(cc, sts, r.scheme); err != nil {
 			return err
 		}
 
-		if err = r.client.Create(context.TODO(), ssCreate); err == nil {
+		if err = r.client.Create(context.TODO(), sts); err == nil {
 			r.log.Info("Create historical statefulSet success",
-				"StatefulSet.Namespace", instance.Namespace,
-				"StatefulSet.Name", ssCreate.GetName())
+				"StatefulSet.Namespace", cc.Namespace,
+				"StatefulSet.Name", sts.GetName())
 		}
 	} else if err != nil {
 		return err
 	} else {
-		if instance.Spec.HistoricalHot.Replicas != *ssCur.Spec.Replicas {
+		if c.Replicas != *ssCur.Spec.Replicas {
 			old := *ssCur.Spec.Replicas
-			ssCur.Spec.Replicas = &instance.Spec.HistoricalHot.Replicas
+			ssCur.Spec.Replicas = &c.Replicas
 			if err = r.client.Update(context.TODO(), ssCur); err == nil {
 				r.log.Info("Scale Historical statefulSet success.",
 					"OldSize", old,
-					"NewSize", instance.Spec.HistoricalHot.Replicas)
+					"NewSize", c.Replicas)
 			}
 
 		}
-		return r.updateStatefulSetHot(instance, ssCur, ssCreate)
+		return r.updateStatefulSetHot(cc, ssCur, sts)
 	}
 
 	r.log.Info("Historical node num info",
@@ -72,8 +71,8 @@ func (r *ReconcileDruid) reconcileStatefulSetHot(instance *binaryomenv1alpha1.Dr
 	return
 }
 
-func (r *ReconcileDruid) reconcileHistoricalConfigMapHot(instance *binaryomenv1alpha1.Druid) (err error) {
-	cmCreate := historicals.MakeConfigMapHot(instance)
+func (r *ReconcileDruid) reconcileHistoricalConfigMapHot(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) (err error) {
+	cmCreate := historicals.MakeConfigMapHot(c, cc)
 
 	cmCur := &v1.ConfigMap{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -81,13 +80,13 @@ func (r *ReconcileDruid) reconcileHistoricalConfigMapHot(instance *binaryomenv1a
 		Namespace: cmCreate.Namespace,
 	}, cmCur)
 	if err != nil && errors.IsNotFound(err) {
-		if err = controllerutil.SetControllerReference(instance, cmCreate, r.scheme); err != nil {
+		if err = controllerutil.SetControllerReference(cc, cmCreate, r.scheme); err != nil {
 			return err
 		}
 
 		if err = r.client.Create(context.TODO(), cmCreate); err == nil {
 			r.log.Info("Create historical config map success",
-				"ConfigMap.Namespace", instance.Namespace,
+				"ConfigMap.Namespace", cc.Namespace,
 				"ConfigMap.Name", cmCreate.GetName())
 		}
 	} else if err != nil {
@@ -96,7 +95,7 @@ func (r *ReconcileDruid) reconcileHistoricalConfigMapHot(instance *binaryomenv1a
 		if err = r.client.Update(context.TODO(), cmCur); err == nil {
 			r.log.Info("Update Historical configmap success")
 		}
-		return r.updateHistoricalCmHot(instance, cmCur, cmCreate)
+		return r.updateHistoricalCmHot(cc, cmCur, cmCreate)
 	}
 	return
 }

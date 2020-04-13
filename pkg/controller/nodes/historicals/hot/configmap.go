@@ -7,7 +7,7 @@ import (
 )
 
 // MakeConfigMap for Historicals
-func MakeConfigMapHot(c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
+func MakeConfigMapHot(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
@@ -15,10 +15,10 @@ func MakeConfigMapHot(c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "runtime-properties-hot",
-			Namespace: c.Namespace,
+			Namespace: cc.Namespace,
 		},
 		Data: map[string]string{
-			"runtime.properties": c.Spec.HistoricalHot.RuntimeProperties,
+			"runtime.properties": c.RuntimeProperties,
 		},
 	}
 }

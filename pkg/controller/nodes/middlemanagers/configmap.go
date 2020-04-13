@@ -1,5 +1,6 @@
 package middlemanager
 
+/*
 import (
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -22,3 +23,4 @@ func MakeConfigMapMM(c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
 		},
 	}
 }
+*/

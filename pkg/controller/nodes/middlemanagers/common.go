@@ -1,5 +1,6 @@
 package middlemanager
 
+/*
 import (
 	"fmt"
 
@@ -56,3 +57,4 @@ func GetVolumeClaimTemplates(vcT []v1.PersistentVolumeClaim) []v1.PersistentVolu
 	}
 	return pvc
 }
+*/

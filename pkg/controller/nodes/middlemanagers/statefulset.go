@@ -1,5 +1,6 @@
 package middlemanager
 
+/*
 import (
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -76,3 +77,4 @@ func makePodSpec(c *binaryomenv1alpha1.Druid) v1.PodSpec {
 	}
 	return spec
 }
+*/
