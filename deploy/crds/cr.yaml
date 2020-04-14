@@ -60,6 +60,20 @@
             </Loggers>
         </Configuration> 
     nodes:   
+     brokers:
+      nodeType: broker
+      port: 8083
+      replicas: 1
+      mountPath: "/opt/druid/conf/druid/cluster/query/broker"
+      runtime.properties: |-
+        druid.service=druid/broker
+        # HTTP server threads
+        druid.broker.http.numConnections=5
+        druid.server.http.numThreads=25
+        # Processing threads and buffers
+        druid.processing.buffer.sizeBytes=1
+        druid.processing.numMergeBuffers=1
+        druid.processing.numThreads=1
      overlord: 
       port: 8080
       replicas: 1
@@ -71,20 +85,6 @@
         druid.indexer.queue.startDelay=PT30S
         druid.indexer.runner.type=remote
         druid.indexer.storage.type=metadata 
-      volumeClaimTemplates: 
-          - 
-            metadata: 
-              name: data-volume
-            spec: 
-              accessModes: 
-                - ReadWriteOnce
-              resources: 
-                requests: 
-                  storage: 1Gi
-      volumeMounts: 
-          - 
-            mountPath: /druid/data
-            name: data-volume  
      historical: 
        mountPath: /opt/druid/conf/druid/cluster/data/historical
        nodeType: historical

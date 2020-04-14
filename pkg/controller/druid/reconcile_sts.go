@@ -15,9 +15,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const historical = "historical"
-const middlemanager = "middlemanager"
-const overlord = "overlord"
+const (
+	broker        = "broker"
+	coordinator   = "coordinator"
+	overlord      = "overlord"
+	middlemanager = "middlemanager"
+	indexer       = "indexer"
+	historical    = "historical"
+	router        = "router"
+)
 
 func (r *ReconcileDruid) reconileDruid(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) error {
 
@@ -41,8 +47,12 @@ type keyAndNodeSpec struct {
 func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAndNodeSpec, error) {
 	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
 		historical:    make([]keyAndNodeSpec, 0, 1),
-		middlemanager: make([]keyAndNodeSpec, 0, 1),
 		overlord:      make([]keyAndNodeSpec, 0, 1),
+		middlemanager: make([]keyAndNodeSpec, 0, 1),
+		indexer:       make([]keyAndNodeSpec, 0, 1),
+		broker:        make([]keyAndNodeSpec, 0, 1),
+		coordinator:   make([]keyAndNodeSpec, 0, 1),
+		router:        make([]keyAndNodeSpec, 0, 1),
 	}
 
 	for key, nodeSpec := range c.Spec.Nodes {
@@ -57,8 +67,12 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	allNodeSpecs := make([]keyAndNodeSpec, 0, len(c.Spec.Nodes))
 
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[historical]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middlemanager]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[overlord]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middlemanager]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[indexer]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[broker]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[coordinator]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[router]...)
 
 	return allNodeSpecs, nil
 }
@@ -72,18 +86,28 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 		if ns.NodeType == historical || ns.NodeType == middlemanager {
 			sts := nodes.MakeStatefulSet(&ns, c)
-			r.reconcileSts(&ns, c, sts)
-		}
+			err = r.reconcileSts(&ns, c, sts)
+			if err != nil {
+				r.log.Error(err, "Reconciling Statefull Nodes  Error", cc)
 
-		/*
-			if ns.NodeType == overlord {
-				d := nodes.Md(&ns, c)
-				r.reconcileDeployment(&ns, c, d)
 			}
-		*/
+		}
+		if ns.NodeType == overlord || ns.NodeType == router || ns.NodeType == broker || ns.NodeType == coordinator {
+			d := nodes.MakeDeployment(&ns, c)
+			err = r.reconcileDeployment(&ns, c, d)
+			if err != nil {
+				r.log.Error(err, "Reconciling Stateless Nodes  Error", cc)
+
+			}
+		}
+		//	if ns.NodeType == overlord {
+		//		d := nodes.MakeDeployment(&ns, c)
+		//		r.reconcileDeployment(&ns, c, d)
+		//	}
 
 		cmN := nodes.MakeConfigMapNode(&ns, c)
 		cmC := nodes.MakeConfigMapCommon(&ns, c)
+
 		r.reconcileConfigMap(&ns, c, cmN)
 		r.reconcileConfigMap(&ns, c, cmC)
 
@@ -131,44 +155,35 @@ func (r *ReconcileDruid) reconcileSts(cc *binaryomenv1alpha1.NodeSpec, c *binary
 	return
 }
 
-func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, deploy *appsv1.Deployment) (err error) {
-	deployCur := &appsv1.Deployment{}
+func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, dmCreate *appsv1.Deployment) (err error) {
+	dmCur := &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      deploy.Name,
-		Namespace: deploy.Namespace,
-	}, deployCur)
+		Name:      dmCreate.Name,
+		Namespace: dmCreate.Namespace,
+	}, dmCur)
 	if err != nil && errors.IsNotFound(err) {
-		if err = controllerutil.SetControllerReference(c, deploy, r.scheme); err != nil {
+		if err = controllerutil.SetControllerReference(c, dmCreate, r.scheme); err != nil {
 			return err
 		}
 
-		if err = r.client.Create(context.TODO(), deploy); err == nil {
-			r.log.Info("Create statefulSet success",
+		if err = r.client.Create(context.TODO(), dmCreate); err == nil {
+			r.log.Info("Create pulsar broker deployment success",
 				"Deployment.Namespace", c.Namespace,
-				"Deployment.Name", deploy.GetName())
+				"Deployment.Name", dmCreate.GetName())
 		}
 	} else if err != nil {
-		r.log.Info("%s", err)
 		return err
 	} else {
-		if cc.Replicas != *deployCur.Spec.Replicas {
-			old := *deployCur.Spec.Replicas
-			deployCur.Spec.Replicas = &cc.Replicas
-			if err = r.client.Update(context.TODO(), deployCur); err == nil {
-				r.log.Info("Scale  Deployment success.",
+		if cc.Replicas != *dmCur.Spec.Replicas {
+			old := *dmCur.Spec.Replicas
+			dmCur.Spec.Replicas = &cc.Replicas
+			if err = r.client.Update(context.TODO(), dmCur); err == nil {
+				r.log.Info("Scale pulsar broker deployment success",
 					"OldSize", old,
 					"NewSize", cc.Replicas)
 			}
-
 		}
-		return r.updateDeployment(c, deployCur, deploy)
 	}
-
-	r.log.Info("Node node num info",
-		"Replicas", deployCur.Status.Replicas,
-		"ReadyNum", deployCur.Status.ReadyReplicas,
-		"CurrentNum", deployCur.Status.Replicas,
-	)
 	return
 }
 

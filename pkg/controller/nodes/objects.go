@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func MakeStatefulSet(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *appsv1.StatefulSet {
@@ -64,17 +65,30 @@ func makeDeploymentSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.D
 		},
 		Replicas: &cc.Replicas,
 		Template: makePodTemplate(cc, c),
+		Strategy: appsv1.DeploymentStrategy{
+			Type:          "RollingUpdate",
+			RollingUpdate: getRollingUpdateStrategy(),
+		},
 	}
 
 	return d
 }
 
+func getRollingUpdateStrategy() *appsv1.RollingUpdateDeployment {
+	var maxUnaval intstr.IntOrString = intstr.FromInt(25)
+	var maxSurge intstr.IntOrString = intstr.FromInt(25)
+	return &appsv1.RollingUpdateDeployment{
+		MaxUnavailable: &maxUnaval,
+		MaxSurge:       &maxSurge,
+	}
+}
+
 func makePodTemplate(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v1.PodTemplateSpec {
 	return v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: makeNodeName(cc),
-			Labels:       getLabels(cc),
-			Annotations:  getAnnotations(cc),
+			Name:        makeNodeName(cc),
+			Labels:      getLabels(cc),
+			Annotations: getAnnotations(cc),
 		},
 		Spec: makePodSpec(cc, c),
 	}
@@ -227,50 +241,4 @@ func getEnv(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) []v1.E
 		env = append(env, val)
 	}
 	return env
-}
-func Md(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *appsv1.Deployment {
-	object := &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Deployment",
-			APIVersion: "apps/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cc.NodeType,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &cc.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "demo",
-				},
-			},
-			Template: v1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": "demo",
-					},
-				},
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						v1.Container{
-							Name:  cc.NodeType,
-							Image: c.Spec.Image,
-							Ports: []v1.ContainerPort{
-								v1.ContainerPort{
-									Name:          "http",
-									ContainerPort: cc.Port,
-									Protocol:      v1.Protocol("TCP"),
-								},
-							},
-							Resources:       v1.ResourceRequirements{},
-							ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
-						},
-					},
-				},
-			},
-			Strategy:        appsv1.DeploymentStrategy{},
-			MinReadySeconds: 0,
-		},
-	}
-	return object
 }
