@@ -19,7 +19,7 @@ const (
 	broker        = "broker"
 	coordinator   = "coordinator"
 	overlord      = "overlord"
-	middlemanager = "middlemanager"
+	middleManager = "middleManager"
 	indexer       = "indexer"
 	historical    = "historical"
 	router        = "router"
@@ -48,7 +48,7 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
 		historical:    make([]keyAndNodeSpec, 0, 1),
 		overlord:      make([]keyAndNodeSpec, 0, 1),
-		middlemanager: make([]keyAndNodeSpec, 0, 1),
+		middleManager: make([]keyAndNodeSpec, 0, 1),
 		indexer:       make([]keyAndNodeSpec, 0, 1),
 		broker:        make([]keyAndNodeSpec, 0, 1),
 		coordinator:   make([]keyAndNodeSpec, 0, 1),
@@ -68,7 +68,7 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[historical]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[overlord]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middlemanager]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middleManager]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[indexer]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[broker]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[coordinator]...)
@@ -84,7 +84,7 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 		ns := elem.spec
 
-		if ns.NodeType == historical || ns.NodeType == middlemanager {
+		if ns.NodeType == historical || ns.NodeType == middleManager {
 			sts := nodes.MakeStatefulSet(&ns, c)
 			err = r.reconcileSts(&ns, c, sts)
 			if err != nil {

@@ -38,13 +38,13 @@ func MakeConfigMapCommon(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.
 			Namespace: c.Namespace,
 		},
 		Data: map[string]string{
-			"common.runtime.properties": fmt.Sprintf("%s", cc.RuntimeProperties),
+			"common.runtime.properties": fmt.Sprintf("%s", c.Spec.CommonRuntimeProperties),
 		},
 	}
 }
 
 func makeConfigMapName(cc *binaryomenv1alpha1.NodeSpec) string {
-	return fmt.Sprintf("%s", cc.NodeType)
+	return fmt.Sprintf("%s", cc.Name)
 }
 
 func getJVM(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) string {

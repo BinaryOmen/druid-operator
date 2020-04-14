@@ -7,43 +7,38 @@
     image: "apache/incubator-druid:0.16.0-incubating"
     startscript: /druid.sh 
     commonConfigMountPath: "/opt/druid/conf/druid/cluster/_common"
-    common.runtime.properties: |-
+    common.runtime.properties: |
+      # Metadata Store
+      druid.metadata.storage.type=derby
+      druid.metadata.storage.connector.connectURI=jdbc:derby://localhost:1527/var/druid/metadata.db;create=true
+      druid.metadata.storage.connector.host=localhost
+      druid.metadata.storage.connector.port=1527
+      druid.metadata.storage.connector.createTables=true
+      # Deep Storage
+      druid.storage.type=local
+      druid.storage.storageDirectory=/druid/data/deepstorage
       #
       # Extensions
       #
-      druid.extensions.loadList=["druid-datasketches", "druid-s3-extensions", "postgresql-metadata-storage"]
-      #
-      # Logging
-      #
-      # Log all runtime properties on startup. Disable to avoid logging properties on startup:
-      druid.startup.logging.logProperties=true
-      #
-      # Indexing service logs
-      #
-      # Store indexing logs in an S3 bucket named 'druid-deep-storage' with the
-      # prefix 'druid/indexing-logs'
-      druid.indexer.logs.type=s3
-      druid.indexer.logs.s3Bucket=mybucket
-      druid.indexer.logs.s3Prefix=druid/indexing-logs
+      druid.extensions.loadList=["druid-kafka-indexing-service"]
+      druid.monitoring.monitors=["com.metamx.metrics.JvmMonitor"]
+      druid.emitter=logging
+      druid.emitter.logging.logLevel=info
       #
       # Service discovery
       #
       druid.selectors.indexing.serviceName=druid/overlord
       druid.selectors.coordinator.serviceName=druid/coordinator
-      #
-      # Monitoring
-      #
-      druid.monitoring.monitors=["com.metamx.metrics.JvmMonitor"]
-      druid.emitter=logging
+
+      
+      druid.zk.service.host=zk-cs.default.svc.cluster.local
+      druid.zk.paths.base=/druid
     jvm.options: |-
       -server
       -XX:MaxDirectMemorySize=10240g
       -Duser.timezone=UTC
       -Dfile.encoding=UTF-8
       -Dlog4j.debug
-      -XX:+ExitOnOutOfMemoryError
-      -XX:+HeapDumpOnOutOfMemoryError
-      -XX:+UseG1GC
       -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
     log4j.config: |-
         <?xml version="1.0" encoding="UTF-8" ?>
@@ -61,38 +56,63 @@
         </Configuration> 
     nodes:   
      brokers:
+      name: broker
       nodeType: broker
-      port: 8083
+      port: 8082
       replicas: 1
       mountPath: "/opt/druid/conf/druid/cluster/query/broker"
       runtime.properties: |-
-        druid.service=druid/broker
-        # HTTP server threads
-        druid.broker.http.numConnections=5
-        druid.server.http.numThreads=25
-        # Processing threads and buffers
-        druid.processing.buffer.sizeBytes=1
-        druid.processing.numMergeBuffers=1
-        druid.processing.numThreads=1
-     overlord: 
-      port: 8080
+         druid.service=druid/broker
+         druid.plaintextPort=8082
+
+         # HTTP server settings
+         druid.server.http.numThreads=12
+
+         # HTTP client settings
+         druid.broker.http.numConnections=10
+         druid.broker.http.maxQueuedBytes=5000000
+
+
+         # Processing threads and buffers
+         druid.processing.buffer.sizeBytes=100000000
+         druid.processing.numMergeBuffers=2
+         druid.processing.numThreads=1
+         druid.processing.tmpDir=/druid/data/processing
+         druid.processing.numThreads=1
+         druid.processing.tmpDir=/druid/data/processing
+     coordinator: 
+      name: coordinator
+      port: 8081
       replicas: 1
-      nodeType: overlord
       mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
-      runtime.properties: |-
-        druid.service=druid/overlord
-        # HTTP server threads
-        druid.indexer.queue.startDelay=PT30S
+      nodeType: coordinator      
+      runtime.properties: |
+        druid.service=druid/coordinator
+        druid.coordinator.startDelay=PT10S
+        druid.coordinator.period=PT5S
+        druid.indexer.queue.startDelay=PT5S
         druid.indexer.runner.type=remote
-        druid.indexer.storage.type=metadata 
+        druid.indexer.storage.type=metadata
+        druid.coordinator.asOverlord.enabled=true
+        druid.coordinator.asOverlord.overlordService=druid/overlord
+     overlords:
+          port: 8090
+          nodeType: overlord
+          name: overlord
+          mountPath: /opt/druid/conf/druid/cluster/master/overlord
+          replicas: 1
+          runtime.properties: |-
+              druid.service=druid/overlord   
      historical: 
+       name: historical
+       securityContext:
+        fsGroup: 0
+        runAsGroup: 0
+        runAsUser: 0
        mountPath: /opt/druid/conf/druid/cluster/data/historical
        nodeType: historical
-       port: 8088
+       port: 8083
        replicas: 1
-       labels:
-         app: druid
-         node: historical
        runtime.properties: |
           druid.service=druid/historical
           druid.server.http.numThreads=5
@@ -115,21 +135,55 @@
        volumeMounts: 
         - 
           mountPath: /druid/data
-          name: data-volume
-       resources:
-            requests:
-              memory: "1G"
-              cpu: "1"
-            limits:
-              memory: "1G"
-              cpu: "1"   
+          name: data-volume  
+     router:     
+          name: router             
+          mountPath: /opt/druid/conf/druid/cluster/query/router
+          port:  8888
+          nodeType: router
+          replicas: 1
+          runtime.properties: |
+             druid.service=druid/router
+             druid.plaintextPort=8888
+   
+             # HTTP proxy
+             druid.router.http.numConnections=50
+             druid.router.http.readTimeout=PT5M
+             druid.router.http.numMaxThreads=100
+             druid.server.http.numThreads=100
+   
+             # Service discovery
+             druid.router.defaultBrokerServiceName=druid/broker
+             druid.router.coordinatorServiceName=druid/coordinator
+   
+             # Management proxy to coordinator / overlord: required for unified web console.
+             druid.router.managementProxy.enabled=true      
      middlemanager:
-            nodeType: middlemanager
+            nodeType: middleManager
+            name: middlemanager
             mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
-            port: 8080
+            port: 8091
             replicas: 1 
             runtime.properties: |
               druid.service=druid/middleManager
+              druid.service=druid/middleManager
+              druid.plaintextPort=8091
+ 
+              # Number of tasks per middleManager
+              druid.worker.capacity=2
+
+              # Task launch parameters
+              druid.indexer.runner.javaOpts=-server -Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+              druid.indexer.task.baseTaskDir=/druid/data/task
+
+              # HTTP server threads
+              druid.server.http.numThreads=12
+
+              # Processing threads and buffers on Peons
+              druid.indexer.fork.property.druid.processing.numMergeBuffers=2
+              druid.indexer.fork.property.druid.processing.buffer.sizeBytes=100000000
+              druid.indexer.fork.property.druid.processing.numThreads=1
+
               druid.worker.capacity=1
             volumeClaimTemplates: 
                 - 
@@ -147,3 +201,4 @@
                   name: data-volume       
     
   
+

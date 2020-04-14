@@ -42,7 +42,7 @@ func MakeDeployment(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid
 func makeStatefulSetSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) appsv1.StatefulSetSpec {
 
 	s := appsv1.StatefulSetSpec{
-		ServiceName: cc.NodeType,
+		ServiceName: cc.Name,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: getLabels(cc),
 		},
@@ -102,9 +102,10 @@ func makePodSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v
 		Affinity:         getAffinity(cc, c),
 		Volumes:          getVolumes(cc, cc.Volumes),
 		ImagePullSecrets: c.Spec.ImagePullSecrets,
+		SecurityContext:  cc.SecurityContext,
 		Containers: []v1.Container{
 			{
-				Name:                     cc.NodeType,
+				Name:                     cc.Name,
 				Image:                    c.Spec.Image,
 				Command:                  getCommand(cc, c),
 				Resources:                cc.Resources,
@@ -113,7 +114,7 @@ func makePodSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v
 				TerminationMessagePolicy: "File",
 				Ports: []v1.ContainerPort{
 					{
-						Name:          cc.NodeType,
+						Name:          cc.Name,
 						ContainerPort: cc.Port,
 						Protocol:      v1.Protocol("TCP"),
 					},
@@ -126,7 +127,7 @@ func makePodSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v
 }
 
 func makeNodeName(cc *binaryomenv1alpha1.NodeSpec) string {
-	return fmt.Sprintf("druid-%s", cc.NodeType)
+	return fmt.Sprintf("druid-%s", cc.Name)
 }
 
 func getLabels(cc *binaryomenv1alpha1.NodeSpec) map[string]string {

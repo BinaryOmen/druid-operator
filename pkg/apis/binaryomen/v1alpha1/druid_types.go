@@ -37,6 +37,8 @@ type DruidSpec struct {
 
 // NodeSpec specific to all nodes
 type NodeSpec struct {
+	//
+	Name string `json:"name"`
 	// NodeType: Can be historical, middlemanager, coordinator, router, overlord
 	NodeType string `json:"nodeType"`
 	// Required
