@@ -9,7 +9,7 @@ import (
 )
 
 // MakeConfigMap for Historicals
-func MakeConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
+func MakeConfigMapNode(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
@@ -20,11 +20,45 @@ func MakeConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid)
 			Namespace: c.Namespace,
 		},
 		Data: map[string]string{
-			"runtime.properties": cc.RuntimeProperties,
+			"runtime.properties": fmt.Sprintf("%s", cc.RuntimeProperties),
+			"jvm.options":        fmt.Sprintf("%s", getJVM(cc, c)),
+			"log4j2.xml":         fmt.Sprintf("%s", getLog4jConfig(cc, c)),
+		},
+	}
+}
+
+func MakeConfigMapCommon(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *v1.ConfigMap {
+	return &v1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "common",
+			Namespace: c.Namespace,
+		},
+		Data: map[string]string{
+			"common.runtime.properties": fmt.Sprintf("%s", cc.RuntimeProperties),
 		},
 	}
 }
 
 func makeConfigMapName(cc *binaryomenv1alpha1.NodeSpec) string {
-	return fmt.Sprintf("%s-runtime-properties", cc.NodeType)
+	return fmt.Sprintf("%s", cc.NodeType)
+}
+
+func getJVM(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) string {
+	if cc.JvmOptions != "" {
+		return cc.JvmOptions
+	} else {
+		return c.Spec.JvmOptions
+	}
+}
+
+func getLog4jConfig(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) string {
+	if cc.Log4jConfig != "" {
+		return cc.JvmOptions
+	} else {
+		return c.Spec.Log4jConfig
+	}
 }

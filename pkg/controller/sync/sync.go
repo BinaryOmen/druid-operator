@@ -14,6 +14,11 @@ func SyncStatefulSet(curr *appsv1.StatefulSet, next *appsv1.StatefulSet) {
 
 }
 
+func SyncDeployment(curr *appsv1.Deployment, next *appsv1.Deployment) {
+	curr.Spec.Replicas = next.Spec.Replicas
+	curr.Spec.Template = next.Spec.Template
+}
+
 func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
 	curr.Data = next.Data
 	curr.BinaryData = next.BinaryData

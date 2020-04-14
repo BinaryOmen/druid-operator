@@ -17,13 +17,14 @@ import (
 
 const historical = "historical"
 const middlemanager = "middlemanager"
+const overlord = "overlord"
 
-func (r *ReconcileDruid) reconileDruid(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) error {
+func (r *ReconcileDruid) reconileDruid(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) error {
 
 	for _, fun := range []reconcileFun{
 		r.reconcileDruidNodes,
 	} {
-		if err := fun(c, cc); err != nil {
+		if err := fun(cc, c); err != nil {
 			r.log.Error(err, "Reconciling DruidCluster  Error", cc)
 			return err
 		}
@@ -41,6 +42,7 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
 		historical:    make([]keyAndNodeSpec, 0, 1),
 		middlemanager: make([]keyAndNodeSpec, 0, 1),
+		overlord:      make([]keyAndNodeSpec, 0, 1),
 	}
 
 	for key, nodeSpec := range c.Spec.Nodes {
@@ -56,58 +58,69 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[historical]...)
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middlemanager]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[overlord]...)
 
 	return allNodeSpecs, nil
 }
 
-func (r *ReconcileDruid) reconcileDruidNodes(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid) (err error) {
-	allNodeSpecs, _ := getAllNodeSpecsInDruidPrescribedOrder(cc)
+func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (err error) {
+	allNodeSpecs, _ := getAllNodeSpecsInDruidPrescribedOrder(c)
 
 	for _, elem := range allNodeSpecs {
 
 		ns := elem.spec
 
-		if ns.NodeType == middlemanager || ns.NodeType == historical {
-			sts := nodes.MakeStatefulSet(&ns, cc)
-			r.reconcileSts(&ns, cc, sts)
+		if ns.NodeType == historical || ns.NodeType == middlemanager {
+			sts := nodes.MakeStatefulSet(&ns, c)
+			r.reconcileSts(&ns, c, sts)
 		}
-		cm := nodes.MakeConfigMap(&ns, cc)
-		r.reconcileConfigMap(&ns, cc, cm)
+
+		/*
+			if ns.NodeType == overlord {
+				d := nodes.Md(&ns, c)
+				r.reconcileDeployment(&ns, c, d)
+			}
+		*/
+
+		cmN := nodes.MakeConfigMapNode(&ns, c)
+		cmC := nodes.MakeConfigMapCommon(&ns, c)
+		r.reconcileConfigMap(&ns, c, cmN)
+		r.reconcileConfigMap(&ns, c, cmC)
 
 	}
 	return
 }
 
-func (r *ReconcileDruid) reconcileSts(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid, sts *appsv1.StatefulSet) (err error) {
+func (r *ReconcileDruid) reconcileSts(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, sts *appsv1.StatefulSet) (err error) {
 	ssCur := &appsv1.StatefulSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      sts.Name,
 		Namespace: sts.Namespace,
 	}, ssCur)
 	if err != nil && errors.IsNotFound(err) {
-		if err = controllerutil.SetControllerReference(cc, sts, r.scheme); err != nil {
+		if err = controllerutil.SetControllerReference(c, sts, r.scheme); err != nil {
 			return err
 		}
 
 		if err = r.client.Create(context.TODO(), sts); err == nil {
 			r.log.Info("Create statefulSet success",
-				"StatefulSet.Namespace", cc.Namespace,
+				"StatefulSet.Namespace", c.Namespace,
 				"StatefulSet.Name", sts.GetName())
 		}
 	} else if err != nil {
 		return err
 	} else {
-		if c.Replicas != *ssCur.Spec.Replicas {
+		if cc.Replicas != *ssCur.Spec.Replicas {
 			old := *ssCur.Spec.Replicas
-			ssCur.Spec.Replicas = &c.Replicas
+			ssCur.Spec.Replicas = &cc.Replicas
 			if err = r.client.Update(context.TODO(), ssCur); err == nil {
 				r.log.Info("Scale  statefulSet success.",
 					"OldSize", old,
-					"NewSize", c.Replicas)
+					"NewSize", cc.Replicas)
 			}
 
 		}
-		return r.updateStatefulSet(cc, ssCur, sts)
+		return r.updateStatefulSet(c, ssCur, sts)
 	}
 
 	r.log.Info("Node node num info",
@@ -118,20 +131,61 @@ func (r *ReconcileDruid) reconcileSts(c *binaryomenv1alpha1.NodeSpec, cc *binary
 	return
 }
 
-func (r *ReconcileDruid) reconcileConfigMap(c *binaryomenv1alpha1.NodeSpec, cc *binaryomenv1alpha1.Druid, cmCreate *v1.ConfigMap) (err error) {
+func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, deploy *appsv1.Deployment) (err error) {
+	deployCur := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      deploy.Name,
+		Namespace: deploy.Namespace,
+	}, deployCur)
+	if err != nil && errors.IsNotFound(err) {
+		if err = controllerutil.SetControllerReference(c, deploy, r.scheme); err != nil {
+			return err
+		}
+
+		if err = r.client.Create(context.TODO(), deploy); err == nil {
+			r.log.Info("Create statefulSet success",
+				"Deployment.Namespace", c.Namespace,
+				"Deployment.Name", deploy.GetName())
+		}
+	} else if err != nil {
+		r.log.Info("%s", err)
+		return err
+	} else {
+		if cc.Replicas != *deployCur.Spec.Replicas {
+			old := *deployCur.Spec.Replicas
+			deployCur.Spec.Replicas = &cc.Replicas
+			if err = r.client.Update(context.TODO(), deployCur); err == nil {
+				r.log.Info("Scale  Deployment success.",
+					"OldSize", old,
+					"NewSize", cc.Replicas)
+			}
+
+		}
+		return r.updateDeployment(c, deployCur, deploy)
+	}
+
+	r.log.Info("Node node num info",
+		"Replicas", deployCur.Status.Replicas,
+		"ReadyNum", deployCur.Status.ReadyReplicas,
+		"CurrentNum", deployCur.Status.Replicas,
+	)
+	return
+}
+
+func (r *ReconcileDruid) reconcileConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, cmCreate *v1.ConfigMap) (err error) {
 	cmCur := &v1.ConfigMap{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      cmCreate.Name,
 		Namespace: cmCreate.Namespace,
 	}, cmCur)
 	if err != nil && errors.IsNotFound(err) {
-		if err = controllerutil.SetControllerReference(cc, cmCreate, r.scheme); err != nil {
+		if err = controllerutil.SetControllerReference(c, cmCreate, r.scheme); err != nil {
 			return err
 		}
 
 		if err = r.client.Create(context.TODO(), cmCreate); err == nil {
 			r.log.Info("Create  config map success",
-				"ConfigMap.Namespace", cc.Namespace,
+				"ConfigMap.Namespace", c.Namespace,
 				"ConfigMap.Name", cmCreate.GetName())
 		}
 	} else if err != nil {
@@ -140,12 +194,12 @@ func (r *ReconcileDruid) reconcileConfigMap(c *binaryomenv1alpha1.NodeSpec, cc *
 		if err = r.client.Update(context.TODO(), cmCur); err == nil {
 			r.log.Info("Update configmap success")
 		}
-		return r.updateCm(cc, cmCur, cmCreate)
+		return r.updateCm(c, cmCur, cmCreate)
 	}
 	return
 }
 
-func (r *ReconcileDruid) updateStatefulSet(instance *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
+func (r *ReconcileDruid) updateStatefulSet(c *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundSts.Namespace,
 		"StatefulSet.Name", foundSts.Name)
@@ -158,7 +212,20 @@ func (r *ReconcileDruid) updateStatefulSet(instance *binaryomenv1alpha1.Druid, f
 	return nil
 }
 
-func (r *ReconcileDruid) updateCm(instance *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
+func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDeploy *appsv1.Deployment, deploy *appsv1.Deployment) (err error) {
+	r.log.Info("Updating StatefulSet",
+		"StatefulSet.Namespace", foundDeploy.Namespace,
+		"StatefulSet.Name", foundDeploy.Name)
+	sync.SyncDeployment(foundDeploy, deploy)
+	err = r.client.Update(context.TODO(), foundDeploy)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *ReconcileDruid) updateCm(c *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
 	r.log.Info("Updating CM",
 		"ConfigMap.Namespace", foundCm.Namespace,
 		"ConfigMap.Name", foundCm.Name)

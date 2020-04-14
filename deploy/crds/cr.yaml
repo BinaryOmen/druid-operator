@@ -4,12 +4,95 @@
   metadata: 
     name: druid
   spec: 
-    nodes:
+    image: "apache/incubator-druid:0.16.0-incubating"
+    startscript: /druid.sh 
+    commonConfigMountPath: "/opt/druid/conf/druid/cluster/_common"
+    common.runtime.properties: |-
+      #
+      # Extensions
+      #
+      druid.extensions.loadList=["druid-datasketches", "druid-s3-extensions", "postgresql-metadata-storage"]
+      #
+      # Logging
+      #
+      # Log all runtime properties on startup. Disable to avoid logging properties on startup:
+      druid.startup.logging.logProperties=true
+      #
+      # Indexing service logs
+      #
+      # Store indexing logs in an S3 bucket named 'druid-deep-storage' with the
+      # prefix 'druid/indexing-logs'
+      druid.indexer.logs.type=s3
+      druid.indexer.logs.s3Bucket=mybucket
+      druid.indexer.logs.s3Prefix=druid/indexing-logs
+      #
+      # Service discovery
+      #
+      druid.selectors.indexing.serviceName=druid/overlord
+      druid.selectors.coordinator.serviceName=druid/coordinator
+      #
+      # Monitoring
+      #
+      druid.monitoring.monitors=["com.metamx.metrics.JvmMonitor"]
+      druid.emitter=logging
+    jvm.options: |-
+      -server
+      -XX:MaxDirectMemorySize=10240g
+      -Duser.timezone=UTC
+      -Dfile.encoding=UTF-8
+      -Dlog4j.debug
+      -XX:+ExitOnOutOfMemoryError
+      -XX:+HeapDumpOnOutOfMemoryError
+      -XX:+UseG1GC
+      -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+    log4j.config: |-
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <Configuration status="WARN">
+            <Appenders>
+                <Console name="Console" target="SYSTEM_OUT">
+                    <PatternLayout pattern="%d{ISO8601} %p [%t] %c - %m%n"/>
+                </Console>
+            </Appenders>
+            <Loggers>
+                <Root level="info">
+                    <AppenderRef ref="Console"/>
+                </Root>
+            </Loggers>
+        </Configuration> 
+    nodes:   
+     overlord: 
+      port: 8080
+      replicas: 1
+      nodeType: overlord
+      mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
+      runtime.properties: |-
+        druid.service=druid/overlord
+        # HTTP server threads
+        druid.indexer.queue.startDelay=PT30S
+        druid.indexer.runner.type=remote
+        druid.indexer.storage.type=metadata 
+      volumeClaimTemplates: 
+          - 
+            metadata: 
+              name: data-volume
+            spec: 
+              accessModes: 
+                - ReadWriteOnce
+              resources: 
+                requests: 
+                  storage: 1Gi
+      volumeMounts: 
+          - 
+            mountPath: /druid/data
+            name: data-volume  
      historical: 
        mountPath: /opt/druid/conf/druid/cluster/data/historical
        nodeType: historical
        port: 8088
        replicas: 1
+       labels:
+         app: druid
+         node: historical
        runtime.properties: |
           druid.service=druid/historical
           druid.server.http.numThreads=5
@@ -33,6 +116,13 @@
         - 
           mountPath: /druid/data
           name: data-volume
+       resources:
+            requests:
+              memory: "1G"
+              cpu: "1"
+            limits:
+              memory: "1G"
+              cpu: "1"   
      middlemanager:
             nodeType: middlemanager
             mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
@@ -55,6 +145,5 @@
                 - 
                   mountPath: /druid/data
                   name: data-volume       
-    image: "apache/incubator-druid:0.16.0-incubating"
-    startscript: /druid.sh
+    
   
