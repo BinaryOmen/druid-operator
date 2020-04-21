@@ -58,8 +58,11 @@
      brokers:
       name: broker
       nodeType: broker
-      port: 8082
       replicas: 1
+      service:
+        port: 8082
+        targetPort: 8082
+        type: ClusterIP
       mountPath: "/opt/druid/conf/druid/cluster/query/broker"
       runtime.properties: |-
          druid.service=druid/broker
@@ -86,6 +89,10 @@
       replicas: 1
       mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
       nodeType: coordinator      
+      service:
+        port: 8081
+        targetPort: 8081
+        type: ClusterIP
       runtime.properties: |
         druid.service=druid/coordinator
         druid.coordinator.startDelay=PT10S
@@ -99,6 +106,10 @@
           port: 8090
           nodeType: overlord
           name: overlord
+          service:
+             port: 8083
+             targetPort: 8083
+             type: ClusterIP
           mountPath: /opt/druid/conf/druid/cluster/master/overlord
           replicas: 1
           runtime.properties: |-
@@ -112,6 +123,10 @@
        mountPath: /opt/druid/conf/druid/cluster/data/historical
        nodeType: historical
        port: 8083
+       service:
+        port: 8083
+        targetPort: 8083
+        type: ClusterIP
        replicas: 1
        runtime.properties: |
           druid.service=druid/historical
@@ -142,6 +157,10 @@
           port:  8888
           nodeType: router
           replicas: 1
+          service:
+               port: 8888
+               targetPort: 8888
+               type: ClusterIP
           runtime.properties: |
              druid.service=druid/router
              druid.plaintextPort=8888
@@ -164,6 +183,10 @@
             mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
             port: 8091
             replicas: 1 
+            service:
+               port: 8091
+               targetPort: 8091
+               type: ClusterIP
             runtime.properties: |
               druid.service=druid/middleManager
               druid.service=druid/middleManager

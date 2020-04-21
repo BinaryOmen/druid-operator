@@ -44,7 +44,11 @@ func makeStatefulSetSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.
 	s := appsv1.StatefulSetSpec{
 		ServiceName: cc.Name,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: getLabels(cc),
+			MatchLabels: map[string]string{
+				"app":  "druid",
+				"type": cc.NodeType,
+				"name": cc.Name,
+			},
 		},
 		Replicas:            &cc.Replicas,
 		Template:            makePodTemplate(cc, c),
@@ -61,7 +65,11 @@ func makeDeploymentSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.D
 
 	d := appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
-			MatchLabels: getLabels(cc),
+			MatchLabels: map[string]string{
+				"app":  "druid",
+				"type": cc.NodeType,
+				"name": cc.Name,
+			},
 		},
 		Replicas: &cc.Replicas,
 		Template: makePodTemplate(cc, c),
@@ -86,8 +94,12 @@ func getRollingUpdateStrategy() *appsv1.RollingUpdateDeployment {
 func makePodTemplate(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v1.PodTemplateSpec {
 	return v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        makeNodeName(cc),
-			Labels:      getLabels(cc),
+			Name: makeNodeName(cc),
+			Labels: map[string]string{
+				"app":  "druid",
+				"type": cc.NodeType,
+				"name": cc.Name,
+			},
 			Annotations: getAnnotations(cc),
 		},
 		Spec: makePodSpec(cc, c),
@@ -115,7 +127,7 @@ func makePodSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v
 				Ports: []v1.ContainerPort{
 					{
 						Name:          cc.Name,
-						ContainerPort: cc.Port,
+						ContainerPort: cc.Service.TargetPort,
 						Protocol:      v1.Protocol("TCP"),
 					},
 				},
@@ -128,17 +140,6 @@ func makePodSpec(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) v
 
 func makeNodeName(cc *binaryomenv1alpha1.NodeSpec) string {
 	return fmt.Sprintf("druid-%s", cc.Name)
-}
-
-func getLabels(cc *binaryomenv1alpha1.NodeSpec) map[string]string {
-	label := make(map[string]string)
-
-	if cc.Labels == nil {
-		label["app"] = "druid"
-		return label
-	} else {
-		return cc.Labels
-	}
 }
 
 func getAnnotations(cc *binaryomenv1alpha1.NodeSpec) map[string]string {

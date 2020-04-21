@@ -19,6 +19,11 @@ func SyncDeployment(curr *appsv1.Deployment, next *appsv1.Deployment) {
 	curr.Spec.Template = next.Spec.Template
 }
 
+func SyncService(curr *v1.Service, next *v1.Service) {
+	curr.Spec.Ports = next.Spec.Ports
+	curr.Spec.Type = next.Spec.Type
+}
+
 func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
 	curr.Data = next.Data
 	curr.BinaryData = next.BinaryData

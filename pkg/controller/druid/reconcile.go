@@ -25,6 +25,11 @@ const (
 	router        = "router"
 )
 
+type keyAndNodeSpec struct {
+	key  string
+	spec binaryomenv1alpha1.NodeSpec
+}
+
 func (r *ReconcileDruid) reconileDruid(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) error {
 
 	for _, fun := range []reconcileFun{
@@ -35,15 +40,11 @@ func (r *ReconcileDruid) reconileDruid(cc *binaryomenv1alpha1.NodeSpec, c *binar
 			return err
 		}
 	}
-	//	time.Sleep(30 * time.Second)
+
 	return nil
 }
 
-type keyAndNodeSpec struct {
-	key  string
-	spec binaryomenv1alpha1.NodeSpec
-}
-
+// getAllNodeSpecsInDruidPrescribedOrder func shall initializes nodes[string]nodeSpec
 func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAndNodeSpec, error) {
 	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
 		historical:    make([]keyAndNodeSpec, 0, 1),
@@ -77,6 +78,8 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	return allNodeSpecs, nil
 }
 
+// TODO: Deploy Cm, deployments, sts and Svc in order.
+// TODO: Add running status
 func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (err error) {
 	allNodeSpecs, _ := getAllNodeSpecsInDruidPrescribedOrder(c)
 
@@ -100,13 +103,13 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 			}
 		}
-		//	if ns.NodeType == overlord {
-		//		d := nodes.MakeDeployment(&ns, c)
-		//		r.reconcileDeployment(&ns, c, d)
-		//	}
 
+		// TODO: Handle error
 		cmN := nodes.MakeConfigMapNode(&ns, c)
 		cmC := nodes.MakeConfigMapCommon(&ns, c)
+
+		druidSvc := nodes.MakeService(&ns, c)
+		r.reconcileService(&ns, c, druidSvc)
 
 		r.reconcileConfigMap(&ns, c, cmN)
 		r.reconcileConfigMap(&ns, c, cmC)
@@ -167,7 +170,7 @@ func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c 
 		}
 
 		if err = r.client.Create(context.TODO(), dmCreate); err == nil {
-			r.log.Info("Create pulsar broker deployment success",
+			r.log.Info("Create druid deployment success",
 				"Deployment.Namespace", c.Namespace,
 				"Deployment.Name", dmCreate.GetName())
 		}
@@ -178,7 +181,7 @@ func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c 
 			old := *dmCur.Spec.Replicas
 			dmCur.Spec.Replicas = &cc.Replicas
 			if err = r.client.Update(context.TODO(), dmCur); err == nil {
-				r.log.Info("Scale pulsar broker deployment success",
+				r.log.Info("Scale druid deployment success",
 					"OldSize", old,
 					"NewSize", cc.Replicas)
 			}
@@ -210,6 +213,33 @@ func (r *ReconcileDruid) reconcileConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *
 			r.log.Info("Update configmap success")
 		}
 		return r.updateCm(c, cmCur, cmCreate)
+	}
+	return
+}
+
+func (r *ReconcileDruid) reconcileService(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, svcCreate *v1.Service) (err error) {
+	svcCur := &v1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      svcCreate.Name,
+		Namespace: svcCreate.Namespace,
+	}, svcCur)
+	if err != nil && errors.IsNotFound(err) {
+		if err = controllerutil.SetControllerReference(c, svcCreate, r.scheme); err != nil {
+			return err
+		}
+
+		if err = r.client.Create(context.TODO(), svcCreate); err == nil {
+			r.log.Info("Create  service success",
+				"Service.Namespace", c.Namespace,
+				"Service.Name", svcCreate.GetName())
+		}
+	} else if err != nil {
+		return err
+	} else {
+		if err = r.client.Update(context.TODO(), svcCur); err == nil {
+			r.log.Info("Update Service success")
+		}
+		return r.updateService(c, svcCur, svcCreate)
 	}
 	return
 }
@@ -246,6 +276,19 @@ func (r *ReconcileDruid) updateCm(c *binaryomenv1alpha1.Druid, foundCm *v1.Confi
 		"ConfigMap.Name", foundCm.Name)
 	sync.SyncCm(foundCm, cm)
 	err = r.client.Update(context.TODO(), foundCm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *ReconcileDruid) updateService(c *binaryomenv1alpha1.Druid, foundSvc *v1.Service, svc *v1.Service) (err error) {
+	r.log.Info("Updating Service",
+		"Service.Namespace", foundSvc.Namespace,
+		"Service.Name", foundSvc.Name)
+	sync.SyncService(foundSvc, svc)
+	err = r.client.Update(context.TODO(), foundSvc)
 	if err != nil {
 		return err
 	}
