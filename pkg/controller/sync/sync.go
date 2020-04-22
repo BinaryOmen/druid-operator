@@ -3,6 +3,7 @@ package sync
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/policy/v1beta1"
 )
 
 // SyncStatefulSet synchronizes any updates to the stateful-set
@@ -27,4 +28,8 @@ func SyncService(curr *v1.Service, next *v1.Service) {
 func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
 	curr.Data = next.Data
 	curr.BinaryData = next.BinaryData
+}
+
+func SyncPdb(curr *v1beta1.PodDisruptionBudget, next *v1beta1.PodDisruptionBudget) {
+	curr.Spec.MaxUnavailable = next.Spec.MaxUnavailable
 }

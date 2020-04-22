@@ -85,10 +85,11 @@
          druid.processing.tmpDir=/druid/data/processing
      coordinator: 
       name: coordinator
-      port: 8081
       replicas: 1
       mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
       nodeType: coordinator      
+      podDisruptionBudget:
+        maxUnavailable: 1
       service:
         port: 8081
         targetPort: 8081
@@ -103,7 +104,6 @@
         druid.coordinator.asOverlord.enabled=true
         druid.coordinator.asOverlord.overlordService=druid/overlord
      overlords:
-          port: 8090
           nodeType: overlord
           name: overlord
           service:
@@ -122,7 +122,6 @@
         runAsUser: 0
        mountPath: /opt/druid/conf/druid/cluster/data/historical
        nodeType: historical
-       port: 8083
        service:
         port: 8083
         targetPort: 8083
@@ -154,7 +153,6 @@
      router:     
           name: router             
           mountPath: /opt/druid/conf/druid/cluster/query/router
-          port:  8888
           nodeType: router
           replicas: 1
           service:
@@ -181,7 +179,6 @@
             nodeType: middleManager
             name: middlemanager
             mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
-            port: 8091
             replicas: 1 
             service:
                port: 8091

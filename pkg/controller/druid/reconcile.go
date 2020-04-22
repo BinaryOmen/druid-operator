@@ -10,6 +10,7 @@ import (
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -87,11 +88,23 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 		ns := elem.spec
 
+		driuidCmRuntime := nodes.MakeConfigMapNode(&ns, c)
+		err = r.reconcileConfigMap(&ns, c, driuidCmRuntime)
+		if err != nil {
+			r.log.Error(err, "Reconciling CM Runtime Properties Error", cc)
+		}
+
+		druidCmCommon := nodes.MakeConfigMapCommon(&ns, c)
+		err = r.reconcileConfigMap(&ns, c, druidCmCommon)
+		if err != nil {
+			r.log.Error(err, "Reconciling CM Common Properties Error", cc)
+		}
+
 		if ns.NodeType == historical || ns.NodeType == middleManager {
 			sts := nodes.MakeStatefulSet(&ns, c)
 			err = r.reconcileSts(&ns, c, sts)
 			if err != nil {
-				r.log.Error(err, "Reconciling Statefull Nodes  Error", cc)
+				r.log.Error(err, "Reconciling Statefull Nodes Error", cc)
 
 			}
 		}
@@ -99,21 +112,22 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 			d := nodes.MakeDeployment(&ns, c)
 			err = r.reconcileDeployment(&ns, c, d)
 			if err != nil {
-				r.log.Error(err, "Reconciling Stateless Nodes  Error", cc)
+				r.log.Error(err, "Reconciling Stateless Nodes Error", cc)
 
 			}
 		}
 
-		// TODO: Handle error
-		cmN := nodes.MakeConfigMapNode(&ns, c)
-		cmC := nodes.MakeConfigMapCommon(&ns, c)
-
 		druidSvc := nodes.MakeService(&ns, c)
-		r.reconcileService(&ns, c, druidSvc)
+		err = r.reconcileService(&ns, c, druidSvc)
+		if err != nil {
+			r.log.Error(err, "Reconciling  Druid Service Error", cc)
+		}
 
-		r.reconcileConfigMap(&ns, c, cmN)
-		r.reconcileConfigMap(&ns, c, cmC)
-
+		druidPdb := nodes.MakePodDisruptionBudget(&ns, c)
+		err = r.reconcilePdb(&ns, c, druidPdb)
+		if err != nil {
+			r.log.Error(err, "Reconciling  Druid PDB Error", cc)
+		}
 	}
 	return
 }
@@ -244,6 +258,33 @@ func (r *ReconcileDruid) reconcileService(cc *binaryomenv1alpha1.NodeSpec, c *bi
 	return
 }
 
+func (r *ReconcileDruid) reconcilePdb(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, pdbCreate *v1beta1.PodDisruptionBudget) (err error) {
+	pdbCur := &v1beta1.PodDisruptionBudget{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      pdbCreate.Name,
+		Namespace: pdbCreate.Namespace,
+	}, pdbCur)
+	if err != nil && errors.IsNotFound(err) {
+		if err = controllerutil.SetControllerReference(c, pdbCreate, r.scheme); err != nil {
+			return err
+		}
+
+		if err = r.client.Create(context.TODO(), pdbCreate); err == nil {
+			r.log.Info("Create  Pod Disruption Budget success",
+				"Pdb.Namespace", c.Namespace,
+				"Pdb.Name", pdbCreate.GetName())
+		}
+	} else if err != nil {
+		return err
+	} else {
+		if err = r.client.Update(context.TODO(), pdbCur); err == nil {
+			r.log.Info("Update Service success")
+		}
+		return r.updatePdb(c, pdbCur, pdbCreate)
+	}
+	return
+}
+
 func (r *ReconcileDruid) updateStatefulSet(c *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundSts.Namespace,
@@ -289,6 +330,19 @@ func (r *ReconcileDruid) updateService(c *binaryomenv1alpha1.Druid, foundSvc *v1
 		"Service.Name", foundSvc.Name)
 	sync.SyncService(foundSvc, svc)
 	err = r.client.Update(context.TODO(), foundSvc)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *ReconcileDruid) updatePdb(c *binaryomenv1alpha1.Druid, foundPdb *v1beta1.PodDisruptionBudget, pdb *v1beta1.PodDisruptionBudget) (err error) {
+	r.log.Info("Updating Pdb",
+		"Pdb.Namespace", foundPdb.Namespace,
+		"Pdb.Name", foundPdb.Name)
+	sync.SyncPdb(foundPdb, pdb)
+	err = r.client.Update(context.TODO(), foundPdb)
 	if err != nil {
 		return err
 	}

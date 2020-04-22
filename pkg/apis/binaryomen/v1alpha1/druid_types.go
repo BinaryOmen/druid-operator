@@ -73,13 +73,17 @@ type NodeSpec struct {
 	SecurityContext *v1.PodSecurityContext `json:"securityContext,omitempty"`
 	// Optional: VolumeClaimTemplates
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
+	// Optional: Pod Disruption Budget
+	PodDisruptionBudget DruidPodDisruptionBudget `json:"podDisruptionBudget"`
 }
 
 type DruidService struct {
-	Port       int32 `json:"port"`
-	TargetPort int32 `json:"targetPort"`
-	//
-	Type v1.ServiceType `json:"type,omitempty"`
+	Port       int32          `json:"port"`
+	TargetPort int32          `json:"targetPort"`
+	Type       v1.ServiceType `json:"type,omitempty"`
+}
+type DruidPodDisruptionBudget struct {
+	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
 }
 
 // DruidStatus defines the observed state of Druid
