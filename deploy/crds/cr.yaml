@@ -1,13 +1,10 @@
 --- 
-  apiVersion: binaryomen.org/v1alpha1
-  kind: Druid
-  metadata: 
-    name: druid
-  spec: 
-    image: "apache/incubator-druid:0.16.0-incubating"
-    startscript: /druid.sh 
-    commonConfigMountPath: "/opt/druid/conf/druid/cluster/_common"
-    common.runtime.properties: |
+apiVersion: binaryomen.org/v1alpha1
+kind: Druid
+metadata: 
+  name: druid
+spec: 
+  common.runtime.properties: |
       # Metadata Store
       druid.metadata.storage.type=derby
       druid.metadata.storage.connector.connectURI=jdbc:derby://localhost:1527/var/druid/metadata.db;create=true
@@ -29,105 +26,86 @@
       #
       druid.selectors.indexing.serviceName=druid/overlord
       druid.selectors.coordinator.serviceName=druid/coordinator
-
+      
       
       druid.zk.service.host=zk-cs.default.svc.cluster.local
       druid.zk.paths.base=/druid
-    jvm.options: |-
+  commonConfigMountPath: /opt/druid/conf/druid/cluster/_common
+  image: "apache/incubator-druid:0.16.0-incubating"
+  jvm.options: |-
       -server
       -XX:MaxDirectMemorySize=10240g
       -Duser.timezone=UTC
       -Dfile.encoding=UTF-8
       -Dlog4j.debug
       -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
-    log4j.config: |-
-        <?xml version="1.0" encoding="UTF-8" ?>
-        <Configuration status="WARN">
-            <Appenders>
-                <Console name="Console" target="SYSTEM_OUT">
-                    <PatternLayout pattern="%d{ISO8601} %p [%t] %c - %m%n"/>
-                </Console>
-            </Appenders>
-            <Loggers>
-                <Root level="info">
-                    <AppenderRef ref="Console"/>
-                </Root>
-            </Loggers>
-        </Configuration> 
-    nodes:   
-     brokers:
+  log4j.config: "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n\
+      <Configuration status=\"WARN\">\n\
+      \x20   <Appenders>\n\
+      \x20       <Console name=\"Console\" target=\"SYSTEM_OUT\">\n\
+      \x20           <PatternLayout pattern=\"%d{ISO8601} %p [%t] %c - %m%n\"/>\n\
+      \x20       </Console>\n\
+      \x20   </Appenders>\n\
+      \x20   <Loggers>\n\
+      \x20       <Root level=\"info\">\n\
+      \x20           <AppenderRef ref=\"Console\"/>\n\
+      \x20       </Root>\n\
+      \x20   </Loggers>\n\
+      </Configuration> "
+  nodes: 
+    brokers: 
+      mountPath: /opt/druid/conf/druid/cluster/query/broker
       name: broker
       nodeType: broker
-      replicas: 1
-      service:
+      replicas: 3
+      runtime.properties: |-
+          druid.service=druid/broker
+          druid.plaintextPort=8082
+          
+          # HTTP server settings
+          druid.server.http.numThreads=12
+          
+          # HTTP client settings
+          druid.broker.http.numConnections=10
+          druid.broker.http.maxQueuedBytes=5000000
+          
+          
+          # Processing threads and buffers
+          druid.processing.buffer.sizeBytes=100000000
+          druid.processing.numMergeBuffers=2
+          druid.processing.numThreads=1
+          druid.processing.tmpDir=/druid/data/processing
+          druid.processing.numThreads=1
+          druid.processing.tmpDir=/druid/data/processing
+      service: 
         port: 8082
         targetPort: 8082
         type: ClusterIP
-      mountPath: "/opt/druid/conf/druid/cluster/query/broker"
-      runtime.properties: |-
-         druid.service=druid/broker
-         druid.plaintextPort=8082
-
-         # HTTP server settings
-         druid.server.http.numThreads=12
-
-         # HTTP client settings
-         druid.broker.http.numConnections=10
-         druid.broker.http.maxQueuedBytes=5000000
-
-
-         # Processing threads and buffers
-         druid.processing.buffer.sizeBytes=100000000
-         druid.processing.numMergeBuffers=2
-         druid.processing.numThreads=1
-         druid.processing.tmpDir=/druid/data/processing
-         druid.processing.numThreads=1
-         druid.processing.tmpDir=/druid/data/processing
-     coordinator: 
-      name: coordinator
-      replicas: 1
+    coordinator: 
+      maxUnavailable: 1
       mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
-      nodeType: coordinator      
-      podDisruptionBudget:
-        maxUnavailable: 1
-      service:
+      name: coordinator
+      nodeType: coordinator
+      replicas: 1
+      runtime.properties: |
+          druid.service=druid/coordinator
+          druid.coordinator.startDelay=PT10S
+          druid.coordinator.period=PT5S
+          druid.indexer.queue.startDelay=PT5S
+          druid.indexer.runner.type=remote
+          druid.indexer.storage.type=metadata
+          druid.coordinator.asOverlord.enabled=true
+          druid.coordinator.asOverlord.overlordService=druid/overlord
+      service: 
         port: 8081
         targetPort: 8081
         type: ClusterIP
+    historical: 
+      mountPath: /opt/druid/conf/druid/cluster/data/historical
+      name: historical
+      nodeType: historical
+      replicas: 1
       runtime.properties: |
-        druid.service=druid/coordinator
-        druid.coordinator.startDelay=PT10S
-        druid.coordinator.period=PT5S
-        druid.indexer.queue.startDelay=PT5S
-        druid.indexer.runner.type=remote
-        druid.indexer.storage.type=metadata
-        druid.coordinator.asOverlord.enabled=true
-        druid.coordinator.asOverlord.overlordService=druid/overlord
-     overlords:
-          nodeType: overlord
-          name: overlord
-          service:
-             port: 8083
-             targetPort: 8083
-             type: ClusterIP
-          mountPath: /opt/druid/conf/druid/cluster/master/overlord
-          replicas: 1
-          runtime.properties: |-
-              druid.service=druid/overlord   
-     historical: 
-       name: historical
-       securityContext:
-        fsGroup: 0
-        runAsGroup: 0
-        runAsUser: 0
-       mountPath: /opt/druid/conf/druid/cluster/data/historical
-       nodeType: historical
-       service:
-        port: 8083
-        targetPort: 8083
-        type: ClusterIP
-       replicas: 1
-       runtime.properties: |
           druid.service=druid/historical
           druid.server.http.numThreads=5
           druid.processing.buffer.sizeBytes=1
@@ -136,7 +114,11 @@
           # Segment storage
           druid.segmentCache.locations=[{\"path\":\"/druid/data/segments\",\"maxSize\":10737418240}]
           druid.server.maxSize=10737418240
-       volumeClaimTemplates: 
+      service: 
+        port: 8083
+        targetPort: 8083
+        type: ClusterIP
+      volumeClaimTemplates: 
         - 
           metadata: 
             name: data-volume
@@ -146,79 +128,83 @@
             resources: 
               requests: 
                 storage: 1Gi
-       volumeMounts: 
+      volumeMounts: 
         - 
           mountPath: /druid/data
-          name: data-volume  
-     router:     
-          name: router             
-          mountPath: /opt/druid/conf/druid/cluster/query/router
-          nodeType: router
-          replicas: 1
-          service:
-               port: 8888
-               targetPort: 8888
-               type: ClusterIP
-          runtime.properties: |
-             druid.service=druid/router
-             druid.plaintextPort=8888
-   
-             # HTTP proxy
-             druid.router.http.numConnections=50
-             druid.router.http.readTimeout=PT5M
-             druid.router.http.numMaxThreads=100
-             druid.server.http.numThreads=100
-   
-             # Service discovery
-             druid.router.defaultBrokerServiceName=druid/broker
-             druid.router.coordinatorServiceName=druid/coordinator
-   
-             # Management proxy to coordinator / overlord: required for unified web console.
-             druid.router.managementProxy.enabled=true      
-     middlemanager:
-            nodeType: middleManager
-            name: middlemanager
-            mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
-            replicas: 1 
-            service:
-               port: 8091
-               targetPort: 8091
-               type: ClusterIP
-            runtime.properties: |
-              druid.service=druid/middleManager
-              druid.service=druid/middleManager
-              druid.plaintextPort=8091
- 
-              # Number of tasks per middleManager
-              druid.worker.capacity=2
-
-              # Task launch parameters
-              druid.indexer.runner.javaOpts=-server -Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
-              druid.indexer.task.baseTaskDir=/druid/data/task
-
-              # HTTP server threads
-              druid.server.http.numThreads=12
-
-              # Processing threads and buffers on Peons
-              druid.indexer.fork.property.druid.processing.numMergeBuffers=2
-              druid.indexer.fork.property.druid.processing.buffer.sizeBytes=100000000
-              druid.indexer.fork.property.druid.processing.numThreads=1
-
-              druid.worker.capacity=1
-            volumeClaimTemplates: 
-                - 
-                  metadata: 
-                    name: data-volume
-                  spec: 
-                    accessModes: 
-                      - ReadWriteOnce
-                    resources: 
-                      requests: 
-                        storage: 1Gi
-            volumeMounts: 
-                - 
-                  mountPath: /druid/data
-                  name: data-volume       
-    
-  
-
+          name: data-volume
+    middlemanager: 
+      mountPath: /opt/druid/conf/druid/cluster/data/middlemanager
+      name: middlemanager
+      nodeType: middleManager
+      replicas: 1
+      runtime.properties: |
+          druid.service=druid/middleManager
+          druid.service=druid/middleManager
+          druid.plaintextPort=8091
+          
+          # Number of tasks per middleManager
+          druid.worker.capacity=2
+          
+          # Task launch parameters
+          druid.indexer.runner.javaOpts=-server -Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+          druid.indexer.task.baseTaskDir=/druid/data/task
+          
+          # HTTP server threads
+          druid.server.http.numThreads=12
+          
+          # Processing threads and buffers on Peons
+          druid.indexer.fork.property.druid.processing.numMergeBuffers=2
+          druid.indexer.fork.property.druid.processing.buffer.sizeBytes=100000000
+          druid.indexer.fork.property.druid.processing.numThreads=1
+          
+          druid.worker.capacity=1
+      service: 
+        port: 8091
+        targetPort: 8091
+        type: ClusterIP
+      volumeClaimTemplates: 
+        - 
+          metadata: 
+            name: data-volume
+          spec: 
+            accessModes: 
+              - ReadWriteOnce
+            resources: 
+              requests: 
+                storage: 1Gi
+      volumeMounts: 
+        - 
+          mountPath: /druid/data
+          name: data-volume
+    overlords: 
+      mountPath: /opt/druid/conf/druid/cluster/master/overlord
+      name: overlord
+      nodeType: overlord
+      replicas: 1
+      runtime.properties: "druid.service=druid/overlord   "
+      service: 
+        port: 8083
+        targetPort: 8083
+        type: ClusterIP
+    router: 
+      mountPath: /opt/druid/conf/druid/cluster/query/router
+      name: router
+      nodeType: router
+      replicas: 1
+      runtime.properties: "druid.service=druid/router\n\
+          druid.plaintextPort=8888\n\n\
+          # HTTP proxy\n\
+          druid.router.http.numConnections=50\n\
+          druid.router.http.readTimeout=PT5M\n\
+          druid.router.http.numMaxThreads=100\n\
+          druid.server.http.numThreads=100\n\n\
+          # Service discovery\n\
+          druid.router.defaultBrokerServiceName=druid/broker\n\
+          druid.router.coordinatorServiceName=druid/coordinator\n\n\
+          # Management proxy to coordinator / overlord: required for unified web console.\n\
+          druid.router.managementProxy.enabled=true      \n"
+      service: 
+        port: 8888
+        targetPort: 8888
+        type: ClusterIP
+  startscript: /druid.sh

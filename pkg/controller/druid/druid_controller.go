@@ -2,11 +2,13 @@ package druid
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
+	"github.com/BinaryOmen/druid-operator/pkg/controller/validation"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -96,11 +98,20 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 		}
 		return reconcile.Result{}, err
 	}
-	//	return reconcile.Result{RequeueAfter: ReconcileTime}, nil
 
+	// Validate Spec
+	validator := validation.Validator{}
+	validator.Validate(c)
+
+	if !validator.Validated {
+		e := fmt.Errorf("Failed to create Druid CR due to [%s]", validator.ErrorMessage)
+		r.log.Error(e, e.Error(), "name", c.Name, "namespace", c.Namespace)
+		return reconcile.Result{}, nil
+	}
+
+	// Reconcile
 	for _, fun := range []reconcileFun{
 		r.reconileDruid,
-		//	r.reconcileMM,
 	} {
 		if err = fun(cc, c); err != nil {
 			return reconcile.Result{}, err

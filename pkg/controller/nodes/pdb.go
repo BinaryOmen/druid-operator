@@ -7,8 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func MakePodDisruptionBudget(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) *v1beta1.PodDisruptionBudget {
-
+func MakePodDisruptionBudget(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (*v1beta1.PodDisruptionBudget, error) {
 	pdb := &v1beta1.PodDisruptionBudget{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "policy/v1beta1",
@@ -35,10 +34,10 @@ func MakePodDisruptionBudget(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alp
 			},
 			MaxUnavailable: &intstr.IntOrString{
 				Type:   intstr.Type(0),
-				IntVal: int32(cc.PodDisruptionBudget.MaxUnavailable),
+				IntVal: int32(cc.MaxUnavailable),
 			},
 		},
 	}
 
-	return pdb
+	return pdb, nil
 }

@@ -123,11 +123,15 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 			r.log.Error(err, "Reconciling  Druid Service Error", cc)
 		}
 
-		druidPdb := nodes.MakePodDisruptionBudget(&ns, c)
+		druidPdb, err := nodes.MakePodDisruptionBudget(&ns, c)
+		if err != nil {
+			r.log.Error(err, "Creating PDB Error", cc)
+		}
 		err = r.reconcilePdb(&ns, c, druidPdb)
 		if err != nil {
 			r.log.Error(err, "Reconciling  Druid PDB Error", cc)
 		}
+
 	}
 	return
 }
@@ -161,7 +165,7 @@ func (r *ReconcileDruid) reconcileSts(cc *binaryomenv1alpha1.NodeSpec, c *binary
 			}
 
 		}
-		return r.updateStatefulSet(c, ssCur, sts)
+		return r.updateStatefulSet(ssCur, sts)
 	}
 
 	r.log.Info("Node node num info",
@@ -200,6 +204,7 @@ func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c 
 					"NewSize", cc.Replicas)
 			}
 		}
+		return r.updateDeployment(c, dmCur, dmCreate)
 	}
 	return
 }
@@ -285,7 +290,7 @@ func (r *ReconcileDruid) reconcilePdb(cc *binaryomenv1alpha1.NodeSpec, c *binary
 	return
 }
 
-func (r *ReconcileDruid) updateStatefulSet(c *binaryomenv1alpha1.Druid, foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
+func (r *ReconcileDruid) updateStatefulSet(foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundSts.Namespace,
 		"StatefulSet.Name", foundSts.Name)
@@ -307,7 +312,6 @@ func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDepl
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

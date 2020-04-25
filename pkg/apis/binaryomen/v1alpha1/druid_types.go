@@ -74,7 +74,7 @@ type NodeSpec struct {
 	// Optional: VolumeClaimTemplates
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 	// Optional: Pod Disruption Budget
-	PodDisruptionBudget DruidPodDisruptionBudget `json:"podDisruptionBudget"`
+	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
 }
 
 type DruidService struct {
@@ -82,15 +82,9 @@ type DruidService struct {
 	TargetPort int32          `json:"targetPort"`
 	Type       v1.ServiceType `json:"type,omitempty"`
 }
-type DruidPodDisruptionBudget struct {
-	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
-}
 
 // DruidStatus defines the observed state of Druid
 type DruidStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

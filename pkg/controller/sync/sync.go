@@ -7,29 +7,34 @@ import (
 )
 
 // SyncStatefulSet synchronizes any updates to the stateful-set
-// TODO: Change Sync to deepcopy
+// Use Deepcopy funcs
 func SyncStatefulSet(curr *appsv1.StatefulSet, next *appsv1.StatefulSet) {
-	curr.Spec.Replicas = next.Spec.Replicas
-	curr.Spec.Template = next.Spec.Template
-	curr.Spec.UpdateStrategy = next.Spec.UpdateStrategy
+	currSts := curr.DeepCopy()
+	currSts.Spec.Replicas = next.Spec.Replicas
+	currSts.Spec.Template = next.Spec.Template
+	currSts.Spec.UpdateStrategy = next.Spec.UpdateStrategy
 
 }
 
 func SyncDeployment(curr *appsv1.Deployment, next *appsv1.Deployment) {
-	curr.Spec.Replicas = next.Spec.Replicas
-	curr.Spec.Template = next.Spec.Template
+	currDeployment := curr.DeepCopy()
+	currDeployment.Spec.Replicas = next.Spec.Replicas
+	currDeployment.Spec.Template = next.Spec.Template
 }
 
 func SyncService(curr *v1.Service, next *v1.Service) {
-	curr.Spec.Ports = next.Spec.Ports
-	curr.Spec.Type = next.Spec.Type
+	currSvc := curr.DeepCopy()
+	currSvc.Spec.Ports = next.Spec.Ports
+	currSvc.Spec.Type = next.Spec.Type
 }
 
 func SyncCm(curr *v1.ConfigMap, next *v1.ConfigMap) {
-	curr.Data = next.Data
-	curr.BinaryData = next.BinaryData
+	currCm := curr.DeepCopy()
+	currCm.Data = next.Data
+	currCm.BinaryData = next.BinaryData
 }
 
 func SyncPdb(curr *v1beta1.PodDisruptionBudget, next *v1beta1.PodDisruptionBudget) {
-	curr.Spec.MaxUnavailable = next.Spec.MaxUnavailable
+	currPdb := curr.DeepCopy()
+	currPdb.Spec.MaxUnavailable = next.Spec.MaxUnavailable
 }
