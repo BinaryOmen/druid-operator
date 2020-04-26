@@ -46,40 +46,6 @@ func (r *ReconcileDruid) reconileDruid(cc *binaryomenv1alpha1.NodeSpec, c *binar
 	return nil
 }
 
-// getAllNodeSpecsInDruidPrescribedOrder func shall initializes nodes[string]nodeSpec
-func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAndNodeSpec, error) {
-	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
-		historical:    make([]keyAndNodeSpec, 0, 1),
-		overlord:      make([]keyAndNodeSpec, 0, 1),
-		middleManager: make([]keyAndNodeSpec, 0, 1),
-		indexer:       make([]keyAndNodeSpec, 0, 1),
-		broker:        make([]keyAndNodeSpec, 0, 1),
-		coordinator:   make([]keyAndNodeSpec, 0, 1),
-		router:        make([]keyAndNodeSpec, 0, 1),
-	}
-
-	for key, nodeSpec := range c.Spec.Nodes {
-		nodeSpecs := nodeSpecsByNodeType[nodeSpec.NodeType]
-		if nodeSpecs == nil {
-			return nil, fmt.Errorf("druidSpec[%s:%s] has invalid NodeType[%s]. Deployment aborted", c.Kind, c.Name, nodeSpec.NodeType)
-		} else {
-			nodeSpecsByNodeType[nodeSpec.NodeType] = append(nodeSpecs, keyAndNodeSpec{key, nodeSpec})
-		}
-	}
-
-	allNodeSpecs := make([]keyAndNodeSpec, 0, len(c.Spec.Nodes))
-
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[historical]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[overlord]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middleManager]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[indexer]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[broker]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[coordinator]...)
-	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[router]...)
-
-	return allNodeSpecs, nil
-}
-
 // TODO: Add running status
 func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (err error) {
 	allNodeSpecs, _ := getAllNodeSpecsInDruidPrescribedOrder(c)
@@ -403,4 +369,39 @@ func (r *ReconcileDruid) updateIng(c *binaryomenv1alpha1.Druid, foundIng *extens
 	}
 
 	return nil
+}
+
+// https://github.com/druid-io/druid-operator/blob/0d843a4cd3b4aebfa13c2144ebdab2998f6de9e2/pkg/controller/druid/handler.go#L957
+// getAllNodeSpecsInDruidPrescribedOrder func shall initializes nodes[string]nodeSpec
+func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAndNodeSpec, error) {
+	nodeSpecsByNodeType := map[string][]keyAndNodeSpec{
+		historical:    make([]keyAndNodeSpec, 0, 1),
+		overlord:      make([]keyAndNodeSpec, 0, 1),
+		middleManager: make([]keyAndNodeSpec, 0, 1),
+		indexer:       make([]keyAndNodeSpec, 0, 1),
+		broker:        make([]keyAndNodeSpec, 0, 1),
+		coordinator:   make([]keyAndNodeSpec, 0, 1),
+		router:        make([]keyAndNodeSpec, 0, 1),
+	}
+
+	for key, nodeSpec := range c.Spec.Nodes {
+		nodeSpecs := nodeSpecsByNodeType[nodeSpec.NodeType]
+		if nodeSpecs == nil {
+			return nil, fmt.Errorf("druidSpec[%s:%s] has invalid NodeType[%s]. Deployment aborted", c.Kind, c.Name, nodeSpec.NodeType)
+		} else {
+			nodeSpecsByNodeType[nodeSpec.NodeType] = append(nodeSpecs, keyAndNodeSpec{key, nodeSpec})
+		}
+	}
+
+	allNodeSpecs := make([]keyAndNodeSpec, 0, len(c.Spec.Nodes))
+
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[historical]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[overlord]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[middleManager]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[indexer]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[broker]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[coordinator]...)
+	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[router]...)
+
+	return allNodeSpecs, nil
 }

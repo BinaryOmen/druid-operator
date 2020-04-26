@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	"github.com/BinaryOmen/druid-operator/pkg/validation"
@@ -50,7 +51,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to secondary resource StatefulSet and requeue the owner Druid
+	// Watch for changes to secondary resource StatefulSet
 	err = c.Watch(&source.Kind{Type: &appsv1.StatefulSet{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &binaryomenv1alpha1.Druid{},
@@ -59,7 +60,20 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
+	// Watch for changes to secondary resource Deployment
 	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &binaryomenv1alpha1.Druid{},
+	})
+
+	// Watch for changes to secondary resource Service
+	err = c.Watch(&source.Kind{Type: &v1.Service{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &binaryomenv1alpha1.Druid{},
+	})
+
+	// Watch for change to secondary resource configmap
+	err = c.Watch(&source.Kind{Type: &v1.ConfigMap{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &binaryomenv1alpha1.Druid{},
 	})
