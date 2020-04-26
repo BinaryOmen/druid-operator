@@ -25,6 +25,7 @@ import (
 var log = logf.Log.WithName("controller_druid")
 
 const ReconcileTime = 30 * time.Second
+const druidFinalizer = "finalizer.druid.binaryomen.org"
 
 // Add creates a new Druid Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -132,6 +133,73 @@ func (r *ReconcileDruid) Reconcile(request reconcile.Request) (reconcile.Result,
 		}
 	}
 
+	isDruidMarkedToBeDeleted := c.GetDeletionTimestamp() != nil
+	if isDruidMarkedToBeDeleted {
+		if contains(c.GetFinalizers(), druidFinalizer) {
+			// Run finalization logic for memcachedFinalizer. If the
+			// finalization logic fails, don't remove the finalizer so
+			// that we can retry during the next reconciliation.
+			if err := r.finalizeDruid(c); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			// Remove memcachedFinalizer. Once all finalizers have been
+			// removed, the object will be deleted.
+			c.SetFinalizers(remove(c.GetFinalizers(), druidFinalizer))
+			err := r.client.Update(context.TODO(), c)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
+	// Add finalizer for this CR
+	if !contains(c.GetFinalizers(), druidFinalizer) {
+		if err := r.addFinalizer(c); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Recreate any missing resources every 'ReconcileTime'
 	return reconcile.Result{RequeueAfter: ReconcileTime}, nil
+}
+func (r *ReconcileDruid) finalizeDruid(c *binaryomenv1alpha1.Druid) error {
+	// TODO(user): Add the cleanup steps that the operator
+	// needs to do before the CR can be deleted. Examples
+	// of finalizers include performing backups and deleting
+	// resources that are not owned by this CR, like a PVC.
+	r.log.Info("Successfully finalized memcached")
+	return nil
+}
+
+func (r *ReconcileDruid) addFinalizer(c *binaryomenv1alpha1.Druid) error {
+	r.log.Info("Adding Finalizer for the Memcached")
+	c.SetFinalizers(append(c.GetFinalizers(), druidFinalizer))
+
+	// Update CR
+	err := r.client.Update(context.TODO(), c)
+	if err != nil {
+		r.log.Error(err, "Failed to update Memcached with finalizer")
+		return err
+	}
+	return nil
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func remove(list []string, s string) []string {
+	for i, v := range list {
+		if v == s {
+			list = append(list[:i], list[i+1:]...)
+		}
+	}
+	return list
 }
