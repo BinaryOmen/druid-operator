@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// MakePodDisruptionBudget shall create a PDB spec if set to true
 func MakePodDisruptionBudget(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (*v1beta1.PodDisruptionBudget, error) {
 	pdb := &v1beta1.PodDisruptionBudget{
 		TypeMeta: metav1.TypeMeta{
@@ -34,7 +35,7 @@ func MakePodDisruptionBudget(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alp
 			},
 			MaxUnavailable: &intstr.IntOrString{
 				Type:   intstr.Type(0),
-				IntVal: int32(cc.MaxUnavailable),
+				IntVal: int32(1),
 			},
 		},
 	}

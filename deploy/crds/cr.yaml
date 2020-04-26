@@ -82,7 +82,7 @@ spec:
         targetPort: 8082
         type: ClusterIP
     coordinator: 
-      maxUnavailable: 1
+      podDisruptionBudget: true
       mountPath: /opt/druid/conf/druid/cluster/master/coordinator-overlord
       name: coordinator
       nodeType: coordinator
@@ -105,6 +105,12 @@ spec:
       name: historical
       nodeType: historical
       replicas: 1
+      ingress:    
+        enabled: true
+        hostname: myhostname.com
+        annotations:
+          ingress: druid
+        path: /myPath
       runtime.properties: |
           druid.service=druid/historical
           druid.server.http.numThreads=5

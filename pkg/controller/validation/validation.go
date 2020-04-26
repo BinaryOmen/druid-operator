@@ -9,7 +9,7 @@ type Validator struct {
 	ErrorMessage string
 }
 
-// Validate Druid
+// Validate Druid Spec
 func (v *Validator) Validate(c *binaryomenv1alpha1.Druid) {
 	v.Validated = true
 
@@ -34,6 +34,7 @@ func (v *Validator) Validate(c *binaryomenv1alpha1.Druid) {
 	}
 
 	for _, n := range c.Spec.Nodes {
+		//TODO: match strings, range slice for node types
 		if n.NodeType == "" {
 			v.ErrorMessage = v.ErrorMessage + "NodeType missing from Druid Node Spec\n"
 			v.Validated = false
@@ -63,5 +64,13 @@ func (v *Validator) Validate(c *binaryomenv1alpha1.Druid) {
 			v.ErrorMessage = v.ErrorMessage + "Node Name missing in Druid Node Spec\n"
 			v.Validated = false
 		}
+
+		if n.Ingress.Enabled == true {
+			if n.Ingress.Hostname == "" {
+				v.ErrorMessage = v.ErrorMessage + "Hostname missing in Druid Node Ingress Spec\n"
+				v.Validated = false
+			}
+		}
+
 	}
 }

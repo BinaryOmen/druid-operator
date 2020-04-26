@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	v1 "k8s.io/api/core/v1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,6 +48,8 @@ type NodeSpec struct {
 	RuntimeProperties string `json:"runtime.properties,omitempty"`
 	// Required: Druid Service
 	Service DruidService `json:"service"`
+	// Optional: Ingress
+	Ingress DruidIngress `json:"ingress,omitempty"`
 	// Optional: JVM Options
 	JvmOptions string `json:"jvm.options,omitempty"`
 	// Optional: Log4jConfig
@@ -74,13 +75,24 @@ type NodeSpec struct {
 	// Optional: VolumeClaimTemplates
 	VolumeClaimTemplates []v1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 	// Optional: Pod Disruption Budget
-	MaxUnavailable int32 `json:"maxUnavailable,omitempty"`
+	PodDisruptionBudget bool `json:"podDisruptionBudget,omitempty"`
 }
 
 type DruidService struct {
 	Port       int32          `json:"port"`
 	TargetPort int32          `json:"targetPort"`
 	Type       v1.ServiceType `json:"type,omitempty"`
+}
+
+type DruidIngress struct {
+	Annotations   map[string]string `json:"annotations,omitempty"`
+	Hostname      string            `json:"hostname,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	Path          string            `json:"path,omitempty"`
+	Enabled       bool              `json:"enabled,omitempty"`
+	TLSEnabled    bool              `json:"tlsEnabled,omitempty"`
+	TLSSecretName string            `json:"tlsSecretName,omitempty"`
+	TargetPort    string            `json:"targetPort,omitempty"`
 }
 
 // DruidStatus defines the observed state of Druid

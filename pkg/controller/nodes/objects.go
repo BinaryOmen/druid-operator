@@ -146,7 +146,7 @@ func getAnnotations(cc *binaryomenv1alpha1.NodeSpec) map[string]string {
 	annotations := make(map[string]string)
 
 	if cc.Annotations == nil {
-		annotations["app"] = "druid"
+		annotations["app"] = cc.Name
 		return annotations
 	} else {
 		return cc.Annotations

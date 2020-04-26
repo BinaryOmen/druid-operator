@@ -6,6 +6,7 @@ import (
 
 	nodes "github.com/BinaryOmen/druid-operator/pkg/controller/nodes"
 	"github.com/BinaryOmen/druid-operator/pkg/controller/sync"
+	extensions "k8s.io/api/extensions/v1beta1"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -79,7 +80,6 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	return allNodeSpecs, nil
 }
 
-// TODO: Deploy Cm, deployments, sts and Svc in order.
 // TODO: Add running status
 func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (err error) {
 	allNodeSpecs, _ := getAllNodeSpecsInDruidPrescribedOrder(c)
@@ -88,18 +88,19 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 		ns := elem.spec
 
+		// create common properties configmap
 		driuidCmRuntime := nodes.MakeConfigMapNode(&ns, c)
 		err = r.reconcileConfigMap(&ns, c, driuidCmRuntime)
 		if err != nil {
 			r.log.Error(err, "Reconciling CM Runtime Properties Error", cc)
 		}
-
+		// create node runtime properties configmap
 		druidCmCommon := nodes.MakeConfigMapCommon(&ns, c)
 		err = r.reconcileConfigMap(&ns, c, druidCmCommon)
 		if err != nil {
 			r.log.Error(err, "Reconciling CM Common Properties Error", cc)
 		}
-
+		// create statefulsets for historicals and middlemanagers
 		if ns.NodeType == historical || ns.NodeType == middleManager {
 			sts := nodes.MakeStatefulSet(&ns, c)
 			err = r.reconcileSts(&ns, c, sts)
@@ -108,6 +109,7 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 			}
 		}
+		// create deployments for overlord, router, broker and coordinator
 		if ns.NodeType == overlord || ns.NodeType == router || ns.NodeType == broker || ns.NodeType == coordinator {
 			d := nodes.MakeDeployment(&ns, c)
 			err = r.reconcileDeployment(&ns, c, d)
@@ -116,26 +118,39 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 
 			}
 		}
-
+		// create druid service
 		druidSvc := nodes.MakeService(&ns, c)
 		err = r.reconcileService(&ns, c, druidSvc)
 		if err != nil {
 			r.log.Error(err, "Reconciling  Druid Service Error", cc)
 		}
 
-		druidPdb, err := nodes.MakePodDisruptionBudget(&ns, c)
-		if err != nil {
-			r.log.Error(err, "Creating PDB Error", cc)
+		// create ingress
+		if ns.Ingress.Enabled == true {
+			ing := nodes.MakeDruidIngress(&ns, c)
+			err = r.reconcileIngress(&ns, c, ing)
+			if err != nil {
+				r.log.Error(err, "Reconcile Ingress Error", ing)
+			}
+
 		}
-		err = r.reconcilePdb(&ns, c, druidPdb)
-		if err != nil {
-			r.log.Error(err, "Reconciling  Druid PDB Error", cc)
+		// create poddisruptionbudget
+		if ns.PodDisruptionBudget == true {
+			pdb, err := nodes.MakePodDisruptionBudget(&ns, c)
+			if err != nil {
+				r.log.Error(err, "Making PDB Error", cc)
+			}
+			err = r.reconcilePdb(&ns, c, pdb)
+			if err != nil {
+				r.log.Error(err, "Reconciling Druid PDB Error", cc)
+			}
 		}
 
 	}
 	return
 }
 
+// reconcileSts will reconcile statefulsets
 func (r *ReconcileDruid) reconcileSts(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, sts *appsv1.StatefulSet) (err error) {
 	ssCur := &appsv1.StatefulSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -176,6 +191,7 @@ func (r *ReconcileDruid) reconcileSts(cc *binaryomenv1alpha1.NodeSpec, c *binary
 	return
 }
 
+// reconcileDeployment shall reconcile deployments
 func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, dmCreate *appsv1.Deployment) (err error) {
 	dmCur := &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -209,6 +225,7 @@ func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c 
 	return
 }
 
+// reconcileConfigMap shall reconcile all the common & runtime properties
 func (r *ReconcileDruid) reconcileConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, cmCreate *v1.ConfigMap) (err error) {
 	cmCur := &v1.ConfigMap{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -236,6 +253,7 @@ func (r *ReconcileDruid) reconcileConfigMap(cc *binaryomenv1alpha1.NodeSpec, c *
 	return
 }
 
+// reconcileService shall reconcile druid svc's
 func (r *ReconcileDruid) reconcileService(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, svcCreate *v1.Service) (err error) {
 	svcCur := &v1.Service{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -263,6 +281,7 @@ func (r *ReconcileDruid) reconcileService(cc *binaryomenv1alpha1.NodeSpec, c *bi
 	return
 }
 
+// reconcilePdb shall reconcile pdb
 func (r *ReconcileDruid) reconcilePdb(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, pdbCreate *v1beta1.PodDisruptionBudget) (err error) {
 	pdbCur := &v1beta1.PodDisruptionBudget{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -285,11 +304,39 @@ func (r *ReconcileDruid) reconcilePdb(cc *binaryomenv1alpha1.NodeSpec, c *binary
 		if err = r.client.Update(context.TODO(), pdbCur); err == nil {
 			r.log.Info("Update Service success")
 		}
-		return r.updatePdb(c, pdbCur, pdbCreate)
 	}
 	return
 }
 
+// reconcileIngress shall reconcile ingress spec
+func (r *ReconcileDruid) reconcileIngress(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid, ingCreate *extensions.Ingress) (err error) {
+	ingCur := &extensions.Ingress{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      ingCreate.Name,
+		Namespace: ingCreate.Namespace,
+	}, ingCur)
+	if err != nil && errors.IsNotFound(err) {
+		if err = controllerutil.SetControllerReference(c, ingCreate, r.scheme); err != nil {
+			return err
+		}
+
+		if err = r.client.Create(context.TODO(), ingCreate); err == nil {
+			r.log.Info("Create  Ingress success",
+				"Ingress.Namespace", c.Namespace,
+				"Ingress.Name", ingCreate.GetName())
+		}
+	} else if err != nil {
+		return err
+	} else {
+		if err = r.client.Update(context.TODO(), ingCur); err == nil {
+			r.log.Info("Update Ingress success")
+		}
+		return r.updateIng(c, ingCur, ingCreate)
+	}
+	return
+}
+
+// upateStatefulset shall sync fountsts with curr sts state
 func (r *ReconcileDruid) updateStatefulSet(foundSts *appsv1.StatefulSet, sts *appsv1.StatefulSet) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundSts.Namespace,
@@ -303,6 +350,7 @@ func (r *ReconcileDruid) updateStatefulSet(foundSts *appsv1.StatefulSet, sts *ap
 	return nil
 }
 
+// updateDeployment shall sync foundedeploy with curr deployment state
 func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDeploy *appsv1.Deployment, deploy *appsv1.Deployment) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundDeploy.Namespace,
@@ -315,6 +363,7 @@ func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDepl
 	return nil
 }
 
+// updateCm shall sync the common and runtime properties configmap
 func (r *ReconcileDruid) updateCm(c *binaryomenv1alpha1.Druid, foundCm *v1.ConfigMap, cm *v1.ConfigMap) (err error) {
 	r.log.Info("Updating CM",
 		"ConfigMap.Namespace", foundCm.Namespace,
@@ -328,6 +377,7 @@ func (r *ReconcileDruid) updateCm(c *binaryomenv1alpha1.Druid, foundCm *v1.Confi
 	return nil
 }
 
+// updateService shall sync the service
 func (r *ReconcileDruid) updateService(c *binaryomenv1alpha1.Druid, foundSvc *v1.Service, svc *v1.Service) (err error) {
 	r.log.Info("Updating Service",
 		"Service.Namespace", foundSvc.Namespace,
@@ -341,12 +391,13 @@ func (r *ReconcileDruid) updateService(c *binaryomenv1alpha1.Druid, foundSvc *v1
 	return nil
 }
 
-func (r *ReconcileDruid) updatePdb(c *binaryomenv1alpha1.Druid, foundPdb *v1beta1.PodDisruptionBudget, pdb *v1beta1.PodDisruptionBudget) (err error) {
-	r.log.Info("Updating Pdb",
-		"Pdb.Namespace", foundPdb.Namespace,
-		"Pdb.Name", foundPdb.Name)
-	sync.SyncPdb(foundPdb, pdb)
-	err = r.client.Update(context.TODO(), foundPdb)
+// updateService shall sync the service
+func (r *ReconcileDruid) updateIng(c *binaryomenv1alpha1.Druid, foundIng *extensions.Ingress, ing *extensions.Ingress) (err error) {
+	r.log.Info("Updating Ingress",
+		"Ingress.Namespace", foundIng.Namespace,
+		"Ingress.Name", foundIng.Name)
+	sync.SyncIngress(foundIng, ing)
+	err = r.client.Update(context.TODO(), foundIng)
 	if err != nil {
 		return err
 	}
