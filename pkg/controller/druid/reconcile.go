@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	nodes "github.com/BinaryOmen/druid-operator/pkg/controller/nodes"
-	"github.com/BinaryOmen/druid-operator/pkg/controller/sync"
+	nodes "github.com/BinaryOmen/druid-operator/pkg/nodes"
+	"github.com/BinaryOmen/druid-operator/pkg/sync"
 	extensions "k8s.io/api/extensions/v1beta1"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"

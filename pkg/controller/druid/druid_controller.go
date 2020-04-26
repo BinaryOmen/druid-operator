@@ -8,7 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 
 	binaryomenv1alpha1 "github.com/BinaryOmen/druid-operator/pkg/apis/binaryomen/v1alpha1"
-	"github.com/BinaryOmen/druid-operator/pkg/controller/validation"
+	"github.com/BinaryOmen/druid-operator/pkg/validation"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

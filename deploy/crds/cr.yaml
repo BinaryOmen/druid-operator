@@ -106,7 +106,7 @@ spec:
       nodeType: historical
       replicas: 1
       ingress:    
-        enabled: true
+        enabled: false
         hostname: myhostname.com
         annotations:
           ingress: druid
