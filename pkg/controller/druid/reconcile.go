@@ -67,13 +67,13 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 			r.log.Error(err, "Reconciling CM Common Properties Error", cc)
 		}
 		// create statefulsets for historicals and middlemanagers
-		if ns.NodeType == historical || ns.NodeType == middleManager {
+		if ns.NodeType == middleManager {
 			sts := nodes.MakeStatefulSet(&ns, c)
 			err = r.reconcileSts(&ns, c, sts)
 			if err != nil {
 				r.log.Error(err, "Reconciling Statefull Nodes Error", cc)
-
 			}
+
 		}
 		// create deployments for overlord, router, broker and coordinator
 		if ns.NodeType == overlord || ns.NodeType == router || ns.NodeType == broker || ns.NodeType == coordinator {
@@ -81,7 +81,6 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 			err = r.reconcileDeployment(&ns, c, d)
 			if err != nil {
 				r.log.Error(err, "Reconciling Stateless Nodes Error", cc)
-
 			}
 		}
 		// create druid service
@@ -113,6 +112,7 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 		}
 
 	}
+
 	return
 }
 
@@ -186,7 +186,7 @@ func (r *ReconcileDruid) reconcileDeployment(cc *binaryomenv1alpha1.NodeSpec, c 
 					"NewSize", cc.Replicas)
 			}
 		}
-		return r.updateDeployment(c, dmCur, dmCreate)
+		return r.updateDeployment(dmCur, dmCreate)
 	}
 	return
 }
@@ -317,7 +317,7 @@ func (r *ReconcileDruid) updateStatefulSet(foundSts *appsv1.StatefulSet, sts *ap
 }
 
 // updateDeployment shall sync foundedeploy with curr deployment state
-func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDeploy *appsv1.Deployment, deploy *appsv1.Deployment) (err error) {
+func (r *ReconcileDruid) updateDeployment(foundDeploy *appsv1.Deployment, deploy *appsv1.Deployment) (err error) {
 	r.log.Info("Updating StatefulSet",
 		"StatefulSet.Namespace", foundDeploy.Namespace,
 		"StatefulSet.Name", foundDeploy.Name)
@@ -326,6 +326,7 @@ func (r *ReconcileDruid) updateDeployment(c *binaryomenv1alpha1.Druid, foundDepl
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -404,4 +405,41 @@ func getAllNodeSpecsInDruidPrescribedOrder(c *binaryomenv1alpha1.Druid) ([]keyAn
 	allNodeSpecs = append(allNodeSpecs, nodeSpecsByNodeType[router]...)
 
 	return allNodeSpecs, nil
+}
+
+func (r *ReconcileDruid) isDeploymentRunning(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (err error) {
+	d := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      cc.Name,
+		Namespace: c.Namespace,
+	}, d)
+	if err != nil {
+		return err
+	} else {
+		if d.Status.ReadyReplicas != *d.Spec.Replicas && d.Status.Conditions[0].Type == "ReplicaFailure" {
+			// Take Action
+			r.log.Info("Deployment Replicas not in ready state", cc.Name)
+		}
+	}
+	return nil
+
+}
+
+func (r *ReconcileDruid) isStsRunning(cc *binaryomenv1alpha1.NodeSpec, c *binaryomenv1alpha1.Druid) (b bool, err error) {
+	sts := &appsv1.ReplicaSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      cc.Name,
+		Namespace: c.Namespace,
+	}, sts)
+	if err != nil {
+		return false, err
+	} else {
+		if sts.Status.ReadyReplicas != *sts.Spec.Replicas {
+			r.log.Info("Deployment Replicas not in ready state", cc.Name)
+			return false, err
+		} else {
+			return true, nil
+		}
+	}
+
 }
