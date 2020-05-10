@@ -67,7 +67,7 @@ func (r *ReconcileDruid) reconcileDruidNodes(cc *binaryomenv1alpha1.NodeSpec, c 
 			r.log.Error(err, "Reconciling CM Common Properties Error", cc)
 		}
 		// create statefulsets for historicals and middlemanagers
-		if ns.NodeType == middleManager {
+		if ns.NodeType == historical || ns.NodeType == middleManager {
 			sts := nodes.MakeStatefulSet(&ns, c)
 			err = r.reconcileSts(&ns, c, sts)
 			if err != nil {
